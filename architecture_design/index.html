@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OleaSat : Révolution IA Sans Capteurs - Rapport Hackathon</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Chart Container Styling - MANDATORY */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        /* Custom Scrollbar for clean look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .active-tab {
+            border-bottom: 3px solid #556B2F;
+            color: #556B2F;
+            font-weight: 700;
+        }
+
+        body.lang-ar {
+            font-family: "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
+        }
+
+        body.lang-ar .rtl-text {
+            text-align: right;
+        }
+
+        body.lang-ar .rtl-flex {
+            flex-direction: row-reverse;
+        }
+
+        body.lang-ar .rtl-icon {
+            margin-right: 0;
+            margin-left: 0.5rem;
+        }
+
+        body.lang-ar .rtl-border-accent {
+            border-left-width: 0;
+            border-right-width: 4px;
+        }
+
+        body.lang-ar .roadmap-line {
+            left: auto;
+            right: 2.5rem;
+        }
+
+        body.lang-ar .roadmap-text {
+            margin-left: 0;
+            margin-right: 1rem;
+            text-align: right;
+        }
+    </style>
+    <!-- Chosen Palette: Warm Neutrals & Olive (Nature-inspired) 
+         Primary: #556B2F (Dark Olive Green) - Represents the crop and sustainability.
+         Secondary: #EADDCD (Beige/Sand) - Represents the soil/earth.
+         Accent: #4682B4 (Steel Blue) - Represents water/technology.
+         Background: #FAFAF9 (Stone) - Clean reading surface.
+    -->
+
+    <!-- Application Structure Plan: 
+         Designed as a "Pitch Deck Dashboard". 
+         Since this is for a hackathon, the user needs to pitch the idea quickly.
+         Structure:
+         1. Hero/Overview: Immediate hook - The Problem (Water) vs The Solution (Sensorless AI).
+         2. Context (Morocco): Why here? Why now? (Data visualization of stress).
+         3. The Tech (The "Meat"): Deep dive into the "Sensorless" concept, Satellite data feasibility, and the AI Model architecture (Transformer).
+         4. Roadmap & Biz: How to execute (Hackathon requirement).
+         
+         Navigation: Top tabs for linear or non-linear exploration.
+         Interactivity: Clickable flowchart steps, toggleable chart datasets (LSTM vs Transformer), cost calculators.
+    -->
+
+    <!-- Visualization & Content Choices:
+         1. Context Chart: Line Chart (Chart.js) showing water deficit trends in Morocco. Goal: Urgency.
+         2. Tech Architecture: Interactive Diagram (HTML/Grid). Goal: Explain "Sensorless" flow simply.
+         3. Model Comparison: Multi-line chart comparing LSTM vs Transformer accuracy over time. Goal: Justify tech choice.
+         4. Cost Benefit: Bar chart comparing Physical Sensors ($$$) vs Satellite AI ($). Goal: Business viability.
+    -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+
+<body class="bg-[#FAFAF9] text-gray-800 font-sans selection:bg-[#556B2F] selection:text-white lang-fr">
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-white shadow-md border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl mr-2">🛰️🫒</span>
+                    <span class="font-bold text-xl tracking-tight text-[#556B2F]">OleaSat <span
+                            class="text-xs font-normal text-gray-500 uppercase tracking-widest ml-1"
+                            id="project-badge">Project Report</span></span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="hidden md:flex space-x-8 items-center" id="nav-container">
+                        <!-- Nav items injected by JS -->
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label id="lang-label"
+                            class="hidden sm:block text-xs font-semibold text-gray-500 uppercase tracking-widest">Langue</label>
+                        <select id="lang-select"
+                            class="border border-gray-200 rounded-md text-sm px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#556B2F]">
+                            <option value="fr">Français</option>
+                            <option value="ar">العربية</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                    <!-- Mobile menu button placeholder -->
+                    <div class="flex items-center md:hidden">
+                        <button id="mobile-menu-btn" class="text-gray-600 hover:text-green-800 focus:outline-none">
+                            ☰
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Nav -->
+        <div id="mobile-nav" class="hidden md:hidden bg-gray-50 border-t">
+            <!-- Mobile items injected by JS -->
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
+        <div id="app-content" class="transition-opacity duration-300">
+            <!-- Dynamic Content Loaded Here -->
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-[#556B2F] text-white mt-12 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="mb-2" id="footer-line-1">Généré pour le Hackathon - Gestion de l’eau adaptée au climat</p>
+            <p class="text-sm opacity-75" id="footer-line-2">Concept: IA Sans Capteurs (Sensorless) pour l'Oliveraie
+                Marocaine</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // --- DATA STORE ---
+        const appData = {
+            currentTab: 'vision',
+            currentLang: 'fr',
+            translations: {
+                fr: {
+                    pageTitle: "OleaSat : Révolution IA Sans Capteurs - Rapport Hackathon",
+                    header: { badge: "Project Report" },
+                    ui: { langLabel: "Langue", arrow: "➔" },
+                    navItems: [
+                        { id: 'vision', label: 'Vision & Contexte' },
+                        { id: 'solution', label: 'La Solution Sensorless' },
+                        { id: 'tech', label: 'Architecture IA' },
+                        { id: 'roadmap', label: 'Roadmap & Biz' }
+                    ],
+                    footer: {
+                        line1: "Généré pour le Hackathon - Gestion de l’eau adaptée au climat",
+                        line2: "Concept: IA Sans Capteurs (Sensorless) pour l'Oliveraie Marocaine"
+                    },
+                    content: {
+                        vision: {
+                            title: "Le Défi : Stress Hydrique au Maroc",
+                            intro: "Le Maroc traverse une crise hydrique structurelle. L'agriculture consomme 85% des ressources, et l'olivier (65% de la surface arboricole nationale) est en première ligne. Les solutions actuelles (capteurs IoT) sont trop coûteuses pour la majorité des agriculteurs.",
+                            stats: [
+                                { label: "Déficit Hydrique", value: "-1.5 Md m³", desc: "Par an (Moyenne 2020-2024)" },
+                                { label: "Coût IoT", value: "3000+ MAD", desc: "Par hectare (Capteurs + Maintenance)" },
+                                { label: "Pertes d'Eau", value: "40%", desc: "Dues à l'irrigation inefficace" }
+                            ],
+                            chartTitle: "📉 La Réalité : Précipitations vs Besoins (Maroc)",
+                            chartDesc: "Ce graphique illustre l'écart grandissant entre les précipitations naturelles et les besoins hydriques de l'agriculture (notamment l'olivier) dans la région de Meknès/Fès.",
+                            whyTitle: "💡 Pourquoi l'Olivier ?",
+                            whyText: "L'olivier est culturellement et économiquement vital pour le Maroc. Bien que résistant, sa productivité chute drastiquement sans eau aux moments clés (floraison, nouaison). ",
+                            whyEmphasis: "Notre but :",
+                            whyContinuation: "Sauver la récolte avec le minimum d'eau possible, sans équipement coûteux."
+                        },
+                        solution: {
+                            title: "Le Concept \"Sensorless AI\" 🛰️",
+                            intro: "Remplacer les capteurs physiques (sondes d'humidité) par des \"capteurs virtuels\" générés par l'Intelligence Artificielle à partir d'images satellites.",
+                            steps: [
+                                {
+                                    title: "1. Satellite",
+                                    desc: "Sentinel-2 passe tous les 5 jours. Capture la réflectance (lumière) des feuilles."
+                                },
+                                {
+                                    title: "2. Modèle IA",
+                                    desc: "L'IA analyse la \"couleur\" (NDVI/NDWI) + la Météo passée pour estimer l'eau dans le sol."
+                                },
+                                {
+                                    title: "3. Recommandation",
+                                    desc: "SMS/App : \"Arrosez 20L par arbre demain, pas besoin aujourd'hui.\""
+                                }
+                            ],
+                            costTitle: "Comparaison des Coûts (5 Ha)",
+                            advantagesTitle: "Avantages Clés",
+                            advantages: [
+                                {
+                                    title: "Zéro Matériel :",
+                                    text: "Pas de vol, pas de panne, pas de maintenance sur le terrain. Idéal pour les zones isolées."
+                                },
+                                {
+                                    title: "Scalabilité Immédiate :",
+                                    text: "On peut surveiller 1 hectare ou 10 000 hectares instantanément grâce aux données Copernicus."
+                                },
+                                {
+                                    title: "Précision Historique :",
+                                    text: "Contrairement à un capteur qu'on installe aujourd'hui, le satellite a des archives depuis 2017. L'IA peut \"apprendre\" du passé de la parcelle."
+                                }
+                            ]
+                        },
+                        tech: {
+                            title: "🧠 Le Cerveau : Architecture du Modèle",
+                            subtitleBefore: "Pourquoi nous choisissons les ",
+                            subtitleHighlight: "Transformers",
+                            subtitleAfter: " plutôt que les LSTM.",
+                            inputsTitle: "Les Données d'Entrée (Inputs)",
+                            inputs: [
+                                { label: "Sentinel-2 :", text: "Bandes B4, B8, B11 (Indices de végétation & eau)." },
+                                { label: "ERA5-Land :", text: "Température sol, Pluie, Rayonnement solaire." },
+                                { label: "Statique :", text: "Texture du sol (Argile/Sable), Type de culture." }
+                            ],
+                            debateTitle: "Le Débat : LSTM vs Transformer",
+                            debateText1: "Les LSTM (Long Short-Term Memory) sont classiques pour les séries temporelles, mais ils \"oublient\" les événements lointains et gèrent mal les données hétérogènes (images + chiffres).",
+                            debateHighlight: "Notre choix : Temporal Fusion Transformer (TFT).",
+                            debateText2: "Il utilise des mécanismes d'\"Attention\" pour pondérer quels jours passés (ex: une forte pluie il y a 40 jours) influencent l'humidité actuelle.",
+                            performanceTitle: "Performance Théorique (Erreur Moyenne)",
+                            performanceNote: "RMSE (Root Mean Square Error) - Plus bas est mieux.",
+                            pipelineTitle: "Pipeline de Données (Hackathon MVP)",
+                            pipelineSteps: [
+                                { tool: "Python / GeeMap", step: "1. Extraction", sub: "Google Earth Engine" },
+                                { tool: "Pandas / NumPy", step: "2. Pré-traitement", sub: "Alignement Temporel" },
+                                { tool: "PyTorch / TF", step: "3. Entraînement", sub: "TFT Model" },
+                                { tool: "Flask / FastAPI", step: "4. API", sub: "Inférence Temps Réel" }
+                            ]
+                        },
+                        roadmap: {
+                            businessTitle: "💰 Business Model",
+                            businessCards: [
+                                {
+                                    title: "Freemium (Petits Agriculteurs)",
+                                    text: "Accès gratuit aux alertes météo et irrigation basique via SMS/WhatsApp. Financé par les subventions gouvernementales (Plan Generation Green)."
+                                },
+                                {
+                                    title: "Premium (Grandes Exploitations)",
+                                    text: "Abonnement SaaS (ex: 50 MAD/ha/mois). Dashboard complet, prédictions à 10 jours, rapports de productivité, intégration ERP."
+                                },
+                                {
+                                    title: "B2G (Gouvernement/Agences)",
+                                    text: "Vente de données agrégées sur l'état hydrique régional aux Agences de Bassins Hydrauliques pour mieux réguler les barrages."
+                                }
+                            ],
+                            roadmapTitle: "🚀 Roadmap Hackathon & Après",
+                            phases: [
+                                {
+                                    title: "Phase 1 : Hackathon (Mois 0)",
+                                    text: "POC du modèle sur une parcelle test à Meknès (Données Open Source)."
+                                },
+                                {
+                                    title: "Phase 2 : Calibration (Mois 1-3)",
+                                    text: "Partenariat avec une ferme pilote pour comparer les prédictions IA avec des sondes réelles (Ground Truthing)."
+                                },
+                                {
+                                    title: "Phase 3 : Déploiement App (Mois 6)",
+                                    text: "Lancement de l'application mobile et du service SMS pour la région Fès-Meknès."
+                                }
+                            ]
+                        }
+                    },
+                    charts: {
+                        context: {
+                            labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'],
+                            precipLabel: 'Précipitations Moyennes (mm)',
+                            needLabel: 'Besoin en Eau Olivier (mm)',
+                            yTitle: 'mm / mois'
+                        },
+                        cost: {
+                            labels: ['Installation (Matériel)', 'Maintenance (3 ans)', 'Abonnement/Service'],
+                            classicLabel: 'Solution IoT Classique',
+                            oleasatLabel: 'Solution OleaSat (IA)',
+                            title: 'Comparatif des Coûts Cumulés (MAD)'
+                        },
+                        model: {
+                            labels: ['Jour 1', 'Jour 2', 'Jour 3', 'Jour 4', 'Jour 5', 'Jour 6', 'Jour 7'],
+                            lstmLabel: 'LSTM (Standard)',
+                            tftLabel: 'Transformer (OleaSat)',
+                            yTitle: 'Erreur de Prédiction (RMSE)',
+                            tooltipSuffix: ' RMSE'
+                        }
+                    }
+                },
+                ar: {
+                    pageTitle: "OleaSat: ثورة الذكاء الاصطناعي بلا حساسات - تقرير الهاكاثون",
+                    header: { badge: "تقرير المشروع" },
+                    ui: { langLabel: "اللغة", arrow: "←" },
+                    navItems: [
+                        { id: 'vision', label: 'الرؤية والسياق' },
+                        { id: 'solution', label: 'الحل بدون حساسات' },
+                        { id: 'tech', label: 'معمارية الذكاء الاصطناعي' },
+                        { id: 'roadmap', label: 'خارطة الطريق والأعمال' }
+                    ],
+                    footer: {
+                        line1: "أُعد للتحدي - إدارة المياه المتكيفة مع المناخ",
+                        line2: "الفكرة: ذكاء اصطناعي بلا حساسات لزراعة الزيتون في المغرب"
+                    },
+                    content: {
+                        vision: {
+                            title: "التحدي: الإجهاد المائي في المغرب",
+                            intro: "يمر المغرب بأزمة مائية هيكلية. يستهلك القطاع الزراعي 85% من الموارد، والزيتون (65% من المساحة الشجرية الوطنية) في الواجهة. الحلول الحالية (حساسات إنترنت الأشياء) مكلفة لمعظم المزارعين.",
+                            stats: [
+                                { label: "العجز المائي", value: "-1.5 مليار م³", desc: "سنويا (متوسط 2020-2024)" },
+                                { label: "تكلفة إنترنت الأشياء", value: "+3000 درهم", desc: "للهكتار (حساسات + صيانة)" },
+                                { label: "فاقد المياه", value: "40%", desc: "بسبب ري غير فعال" }
+                            ],
+                            chartTitle: "📉 الواقع: التساقطات مقابل الاحتياج (المغرب)",
+                            chartDesc: "يوضح هذا الرسم الفجوة المتزايدة بين التساقطات الطبيعية واحتياجات المياه الزراعية (خصوصا الزيتون) في منطقة مكناس/فاس.",
+                            whyTitle: "💡 لماذا الزيتون؟",
+                            whyText: "الزيتون مهم ثقافيا واقتصاديا للمغرب. ورغم مقاومته للجفاف، تنخفض إنتاجيته بشدة دون ماء في المراحل الحساسة (الإزهار، عقد الثمار). ",
+                            whyEmphasis: "هدفنا:",
+                            whyContinuation: "إنقاذ المحصول بأقل كمية ممكنة من المياه وبدون معدات مكلفة."
+                        },
+                        solution: {
+                            title: "مفهوم \"الذكاء الاصطناعي بلا حساسات\" 🛰️",
+                            intro: "استبدال الحساسات الفيزيائية (مجسات الرطوبة) بحساسات افتراضية تولدها خوارزميات الذكاء الاصطناعي من صور الأقمار الصناعية.",
+                            steps: [
+                                {
+                                    title: "1. القمر الصناعي",
+                                    desc: "يمر Sentinel-2 كل 5 أيام ويلتقط انعكاس الضوء من الأوراق."
+                                },
+                                {
+                                    title: "2. نموذج الذكاء الاصطناعي",
+                                    desc: "يحلل النموذج اللون (NDVI/NDWI) مع الطقس السابق لتقدير الماء في التربة."
+                                },
+                                {
+                                    title: "3. التوصية",
+                                    desc: "رسالة أو تطبيق: \"اسق 20 لترا لكل شجرة غدا، لا حاجة اليوم.\""
+                                }
+                            ],
+                            costTitle: "مقارنة التكاليف (5 هكتارات)",
+                            advantagesTitle: "مزايا رئيسية",
+                            advantages: [
+                                {
+                                    title: "بدون معدات:",
+                                    text: "لا سرقة، لا أعطال، ولا صيانة ميدانية. مثالي للمناطق النائية."
+                                },
+                                {
+                                    title: "قابلية توسع فورية:",
+                                    text: "يمكن مراقبة هكتار واحد أو 10 آلاف هكتار مباشرة بفضل بيانات Copernicus."
+                                },
+                                {
+                                    title: "دقة تاريخية:",
+                                    text: "على عكس الحساسات الجديدة، للأقمار الصناعية أرشيف منذ 2017. يمكن للذكاء الاصطناعي التعلم من تاريخ القطعة الزراعية."
+                                }
+                            ]
+                        },
+                        tech: {
+                            title: "🧠 العقل: معمارية النموذج",
+                            subtitleBefore: "لماذا نختار ",
+                            subtitleHighlight: "المحولات",
+                            subtitleAfter: " بدل LSTM.",
+                            inputsTitle: "بيانات الإدخال",
+                            inputs: [
+                                { label: "Sentinel-2:", text: "النطاقات B4 وB8 وB11 (مؤشرات الغطاء النباتي والماء)." },
+                                { label: "ERA5-Land:", text: "حرارة التربة، المطر، الإشعاع الشمسي." },
+                                { label: "ثابتة:", text: "نسيج التربة (طين/رمل)، نوع المحصول." }
+                            ],
+                            debateTitle: "النقاش: LSTM مقابل Transformer",
+                            debateText1: "تعد LSTM شائعة في السلاسل الزمنية، لكنها تنسى الأحداث البعيدة وتتعامل بصعوبة مع البيانات المتنوعة (صور + أرقام).",
+                            debateHighlight: "خيارنا: Temporal Fusion Transformer (TFT).",
+                            debateText2: "تستخدم آليات الانتباه لتحديد أي الأيام السابقة (مثل مطر غزير قبل 40 يوما) تؤثر على رطوبة اليوم.",
+                            performanceTitle: "الأداء النظري (متوسط الخطأ)",
+                            performanceNote: "RMSE (الجذر التربيعي لمتوسط مربع الخطأ) - الأقل أفضل.",
+                            pipelineTitle: "سلسلة البيانات (نسخة الهاكاثون)",
+                            pipelineSteps: [
+                                { tool: "Python / GeeMap", step: "1. الاستخراج", sub: "Google Earth Engine" },
+                                { tool: "Pandas / NumPy", step: "2. المعالجة المسبقة", sub: "محاذاة زمنية" },
+                                { tool: "PyTorch / TF", step: "3. التدريب", sub: "نموذج TFT" },
+                                { tool: "Flask / FastAPI", step: "4. واجهة برمجة التطبيقات", sub: "استدلال لحظي" }
+                            ]
+                        },
+                        roadmap: {
+                            businessTitle: "💰 نموذج العمل",
+                            businessCards: [
+                                {
+                                    title: "مجاني مع مزايا أساسية (صغار المزارعين)",
+                                    text: "وصول مجاني لتنبيهات الطقس والري الأساسي عبر SMS/WhatsApp. ممول من دعم حكومي (خطة Generation Green)."
+                                },
+                                {
+                                    title: "مدفوع (مزارع كبيرة)",
+                                    text: "اشتراك SaaS (مثلا 50 درهما/هكتار/شهر). لوحة تحكم كاملة وتنبؤات 10 أيام وتقارير إنتاجية وتكامل ERP."
+                                },
+                                {
+                                    title: "B2G (حكومة/وكالات)",
+                                    text: "بيع بيانات مجمعة عن الحالة المائية الإقليمية لوكالات الأحواض المائية لتحسين تنظيم السدود."
+                                }
+                            ],
+                            roadmapTitle: "🚀 خارطة طريق الهاكاثون وما بعده",
+                            phases: [
+                                {
+                                    title: "المرحلة 1: الهاكاثون (الشهر 0)",
+                                    text: "إثبات مفهوم النموذج على قطعة تجريبية في مكناس (بيانات مفتوحة)."
+                                },
+                                {
+                                    title: "المرحلة 2: المعايرة (الأشهر 1-3)",
+                                    text: "شراكة مع مزرعة تجريبية لمقارنة توقعات الذكاء الاصطناعي مع حساسات حقيقية."
+                                },
+                                {
+                                    title: "المرحلة 3: إطلاق التطبيق (الشهر 6)",
+                                    text: "إطلاق تطبيق الهاتف وخدمة الرسائل النصية لمنطقة فاس-مكناس."
+                                }
+                            ]
+                        }
+                    },
+                    charts: {
+                        context: {
+                            labels: ['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نون', 'ديس'],
+                            precipLabel: 'متوسط التساقطات (مم)',
+                            needLabel: 'احتياج ماء الزيتون (مم)',
+                            yTitle: 'مم / شهر'
+                        },
+                        cost: {
+                            labels: ['التركيب (المعدات)', 'الصيانة (3 سنوات)', 'الاشتراك/الخدمة'],
+                            classicLabel: 'حل إنترنت الأشياء التقليدي',
+                            oleasatLabel: 'حل OleaSat (ذكاء اصطناعي)',
+                            title: 'مقارنة التكاليف التراكمية (درهم)'
+                        },
+                        model: {
+                            labels: ['اليوم 1', 'اليوم 2', 'اليوم 3', 'اليوم 4', 'اليوم 5', 'اليوم 6', 'اليوم 7'],
+                            lstmLabel: 'LSTM (قياسي)',
+                            tftLabel: 'Transformer (OleaSat)',
+                            yTitle: 'خطأ التنبؤ (RMSE)',
+                            tooltipSuffix: ' RMSE'
+                        }
+                    }
+                },
+                en: {
+                    pageTitle: "OleaSat: Sensorless AI Revolution - Hackathon Report",
+                    header: { badge: "Project Report" },
+                    ui: { langLabel: "Language", arrow: "➔" },
+                    navItems: [
+                        { id: 'vision', label: 'Vision & Context' },
+                        { id: 'solution', label: 'Sensorless Solution' },
+                        { id: 'tech', label: 'AI Architecture' },
+                        { id: 'roadmap', label: 'Roadmap & Business' }
+                    ],
+                    footer: {
+                        line1: "Prepared for the Hackathon - Climate-adaptive water management",
+                        line2: "Concept: Sensorless AI for Moroccan Olive Groves"
+                    },
+                    content: {
+                        vision: {
+                            title: "The Challenge: Water Stress in Morocco",
+                            intro: "Morocco faces a structural water crisis. Agriculture consumes 85% of resources, and olive trees (65% of national arboreal area) are on the front line. Current solutions (IoT sensors) are too costly for most farmers.",
+                            stats: [
+                                { label: "Water Deficit", value: "-1.5 B m³", desc: "Per year (Avg 2020-2024)" },
+                                { label: "IoT Cost", value: "3000+ MAD", desc: "Per hectare (Sensors + Maintenance)" },
+                                { label: "Water Loss", value: "40%", desc: "From inefficient irrigation" }
+                            ],
+                            chartTitle: "📉 Reality: Rainfall vs Needs (Morocco)",
+                            chartDesc: "This chart shows the widening gap between natural rainfall and agricultural water needs (especially olives) in the Meknès/Fès region.",
+                            whyTitle: "💡 Why Olive Trees?",
+                            whyText: "Olives are culturally and economically vital for Morocco. While drought-tolerant, yields drop sharply without water at key stages (flowering, fruit set). ",
+                            whyEmphasis: "Our goal:",
+                            whyContinuation: "Protect the harvest with minimal water and no costly equipment."
+                        },
+                        solution: {
+                            title: "The \"Sensorless AI\" Concept 🛰️",
+                            intro: "Replace physical sensors (moisture probes) with virtual sensors generated by AI from satellite imagery.",
+                            steps: [
+                                {
+                                    title: "1. Satellite",
+                                    desc: "Sentinel-2 passes every 5 days and captures leaf reflectance."
+                                },
+                                {
+                                    title: "2. AI Model",
+                                    desc: "The model analyzes color (NDVI/NDWI) plus past weather to estimate soil water."
+                                },
+                                {
+                                    title: "3. Recommendation",
+                                    desc: "SMS/App: \"Irrigate 20L per tree tomorrow, no need today.\""
+                                }
+                            ],
+                            costTitle: "Cost Comparison (5 Ha)",
+                            advantagesTitle: "Key Advantages",
+                            advantages: [
+                                {
+                                    title: "Zero Hardware:",
+                                    text: "No theft, no breakdowns, no field maintenance. Ideal for remote areas."
+                                },
+                                {
+                                    title: "Instant Scalability:",
+                                    text: "Monitor 1 hectare or 10,000 hectares instantly using Copernicus data."
+                                },
+                                {
+                                    title: "Historical Precision:",
+                                    text: "Unlike sensors installed today, satellites provide archives since 2017. AI can learn from the plot's history."
+                                }
+                            ]
+                        },
+                        tech: {
+                            title: "🧠 The Brain: Model Architecture",
+                            subtitleBefore: "Why we choose ",
+                            subtitleHighlight: "Transformers",
+                            subtitleAfter: " over LSTM.",
+                            inputsTitle: "Input Data",
+                            inputs: [
+                                { label: "Sentinel-2:", text: "Bands B4, B8, B11 (vegetation & water indices)." },
+                                { label: "ERA5-Land:", text: "Soil temperature, rainfall, solar radiation." },
+                                { label: "Static:", text: "Soil texture (clay/sand), crop type." }
+                            ],
+                            debateTitle: "Debate: LSTM vs Transformer",
+                            debateText1: "LSTMs are standard for time series, but they forget distant events and struggle with heterogeneous data (images + numbers).",
+                            debateHighlight: "Our choice: Temporal Fusion Transformer (TFT).",
+                            debateText2: "It uses attention mechanisms to weigh which past days (e.g., heavy rain 40 days ago) influence current moisture.",
+                            performanceTitle: "Theoretical Performance (Mean Error)",
+                            performanceNote: "RMSE (Root Mean Square Error) - Lower is better.",
+                            pipelineTitle: "Data Pipeline (Hackathon MVP)",
+                            pipelineSteps: [
+                                { tool: "Python / GeeMap", step: "1. Extraction", sub: "Google Earth Engine" },
+                                { tool: "Pandas / NumPy", step: "2. Pre-processing", sub: "Temporal Alignment" },
+                                { tool: "PyTorch / TF", step: "3. Training", sub: "TFT Model" },
+                                { tool: "Flask / FastAPI", step: "4. API", sub: "Real-time Inference" }
+                            ]
+                        },
+                        roadmap: {
+                            businessTitle: "💰 Business Model",
+                            businessCards: [
+                                {
+                                    title: "Freemium (Small Farmers)",
+                                    text: "Free access to weather alerts and basic irrigation via SMS/WhatsApp. Funded by government subsidies (Generation Green plan)."
+                                },
+                                {
+                                    title: "Premium (Large Farms)",
+                                    text: "SaaS subscription (e.g., 50 MAD/ha/month). Full dashboard, 10-day forecasts, productivity reports, ERP integration."
+                                },
+                                {
+                                    title: "B2G (Government/Agencies)",
+                                    text: "Sell aggregated regional water status data to basin agencies for better dam regulation."
+                                }
+                            ],
+                            roadmapTitle: "🚀 Hackathon Roadmap & Beyond",
+                            phases: [
+                                {
+                                    title: "Phase 1: Hackathon (Month 0)",
+                                    text: "POC of the model on a test plot in Meknès (Open Source data)."
+                                },
+                                {
+                                    title: "Phase 2: Calibration (Months 1-3)",
+                                    text: "Partner with a pilot farm to compare AI predictions with real probes (ground truthing)."
+                                },
+                                {
+                                    title: "Phase 3: App Launch (Month 6)",
+                                    text: "Launch the mobile app and SMS service for the Fès-Meknès region."
+                                }
+                            ]
+                        }
+                    },
+                    charts: {
+                        context: {
+                            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                            precipLabel: 'Average Rainfall (mm)',
+                            needLabel: 'Olive Water Needs (mm)',
+                            yTitle: 'mm / month'
+                        },
+                        cost: {
+                            labels: ['Installation (Hardware)', 'Maintenance (3 years)', 'Subscription/Service'],
+                            classicLabel: 'Classic IoT Solution',
+                            oleasatLabel: 'OleaSat Solution (AI)',
+                            title: 'Cumulative Cost Comparison (MAD)'
+                        },
+                        model: {
+                            labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
+                            lstmLabel: 'LSTM (Standard)',
+                            tftLabel: 'Transformer (OleaSat)',
+                            yTitle: 'Prediction Error (RMSE)',
+                            tooltipSuffix: ' RMSE'
+                        }
+                    }
+                }
+            }
+        };
+
+        // --- DOM ELEMENTS ---
+        const contentContainer = document.getElementById('app-content');
+        const navContainer = document.getElementById('nav-container');
+        const mobileNav = document.getElementById('mobile-nav');
+        const langSelect = document.getElementById('lang-select');
+        const footerLine1 = document.getElementById('footer-line-1');
+        const footerLine2 = document.getElementById('footer-line-2');
+        const projectBadge = document.getElementById('project-badge');
+        const langLabel = document.getElementById('lang-label');
+
+        let contextChartInstance = null;
+        let costChartInstance = null;
+        let modelChartInstance = null;
+
+        // --- NAVIGATION LOGIC ---
+        function getLocale() {
+            return appData.translations[appData.currentLang];
+        }
+
+        function applyLanguage() {
+            const locale = getLocale();
+            document.title = locale.pageTitle;
+            document.documentElement.lang = appData.currentLang;
+            document.documentElement.dir = appData.currentLang === 'ar' ? 'rtl' : 'ltr';
+            document.body.classList.toggle('lang-ar', appData.currentLang === 'ar');
+            document.body.classList.toggle('lang-fr', appData.currentLang === 'fr');
+            langSelect.value = appData.currentLang;
+            footerLine1.textContent = locale.footer.line1;
+            footerLine2.textContent = locale.footer.line2;
+            projectBadge.textContent = locale.header.badge;
+            langLabel.textContent = locale.ui.langLabel;
+        }
+
+        function initNav() {
+            const locale = getLocale();
+            const mobileAlign = appData.currentLang === 'ar' ? 'text-right' : 'text-left';
+            navContainer.innerHTML = locale.navItems.map(item =>
+                `<button onclick="switchTab('${item.id}')" 
+                    class="px-3 py-2 text-sm font-medium transition-colors duration-200 ${appData.currentTab === item.id ? 'active-tab' : 'text-gray-500 hover:text-gray-800'}">
+                    ${item.label}
+                </button>`
+            ).join('');
+
+            mobileNav.innerHTML = locale.navItems.map(item =>
+                `<button onclick="switchTab('${item.id}')" 
+                    class="block w-full ${mobileAlign} px-4 py-3 text-base font-medium ${appData.currentTab === item.id ? 'bg-green-50 text-[#556B2F]' : 'text-gray-600'}">
+                    ${item.label}
+                </button>`
+            ).join('');
+        }
+
+        function switchTab(tabId) {
+            appData.currentTab = tabId;
+            initNav(); // Re-render nav for active state
+
+            // Fade out, switch content, fade in
+            contentContainer.style.opacity = '0';
+            setTimeout(() => {
+                renderContent(tabId);
+                contentContainer.style.opacity = '1';
+            }, 300);
+
+            // Close mobile menu if open
+            mobileNav.classList.add('hidden');
+        }
+
+        document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+            mobileNav.classList.toggle('hidden');
+        });
+
+        langSelect.addEventListener('change', (event) => {
+            setLanguage(event.target.value);
+        });
+
+        function setLanguage(lang) {
+            if (!appData.translations[lang]) return;
+            appData.currentLang = lang;
+            localStorage.setItem('lang', lang);
+            applyLanguage();
+            initNav();
+            renderContent(appData.currentTab);
+        }
+
+        // --- RENDER LOGIC ---
+        function renderContent(tabId) {
+            let html = '';
+
+            if (tabId === 'vision') {
+                html = renderVisionSection();
+            } else if (tabId === 'solution') {
+                html = renderSolutionSection();
+            } else if (tabId === 'tech') {
+                html = renderTechSection();
+            } else if (tabId === 'roadmap') {
+                html = renderRoadmapSection();
+            }
+
+            contentContainer.innerHTML = html;
+
+            // Initialize Charts after DOM injection
+            setTimeout(() => {
+                if (tabId === 'vision') initContextChart();
+                if (tabId === 'solution') initCostChart();
+                if (tabId === 'tech') initModelChart();
+            }, 50);
+        }
+
+        // --- SECTION TEMPLATES ---
+
+        // 1. VISION SECTION
+        function renderVisionSection() {
+            const data = getLocale().content.vision;
+            const isRtl = appData.currentLang === 'ar';
+            return `
+                <section class="space-y-8">
+                    <div class="bg-white rounded-xl shadow-sm p-8 border-l-4 border-[#556B2F] rtl-border-accent ${isRtl ? 'rtl-text' : ''}">
+                        <h2 class="text-3xl font-bold text-gray-900 mb-4">${data.title}</h2>
+                        <p class="text-lg text-gray-700 leading-relaxed">${data.intro}</p>
+                    </div>
+
+                    <!-- KPI Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        ${data.stats.map(stat => `
+                            <div class="bg-white p-6 rounded-lg shadow-sm text-center transform hover:scale-105 transition-transform duration-300">
+                                <div class="text-4xl font-bold text-[#556B2F] mb-2">${stat.value}</div>
+                                <div class="text-sm font-bold text-gray-900 uppercase tracking-wide">${stat.label}</div>
+                                <div class="text-xs text-gray-500 mt-1">${stat.desc}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Context Chart -->
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">${data.chartTitle}</h3>
+                        <p class="text-gray-600 mb-4 text-sm">${data.chartDesc}</p>
+                        <div class="chart-container">
+                            <canvas id="contextChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-[#EADDCD] rounded-xl p-6 mt-6 ${isRtl ? 'rtl-text' : ''}">
+                        <h3 class="text-lg font-bold text-[#556B2F] mb-2">${data.whyTitle}</h3>
+                        <p class="text-gray-800">
+                            ${data.whyText}
+                            <span class="font-bold">${data.whyEmphasis}</span> ${data.whyContinuation}
+                        </p>
+                    </div>
+                </section>
+            `;
+        }
+
+        // 2. SOLUTION SECTION
+        function renderSolutionSection() {
+            const data = getLocale().content.solution;
+            const locale = getLocale();
+            const isRtl = appData.currentLang === 'ar';
+            return `
+                <section class="space-y-8">
+                    <div class="text-center max-w-3xl mx-auto mb-10">
+                        <h2 class="text-3xl font-bold text-gray-900 mb-4">${data.title}</h2>
+                        <p class="text-gray-600 text-lg">${data.intro}</p>
+                    </div>
+
+                    <!-- How it works diagram (HTML/Flex) -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-stretch text-center">
+                        <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 flex flex-col items-center justify-center">
+                            <div class="text-4xl mb-2">🛰️</div>
+                            <h4 class="font-bold text-blue-800">${data.steps[0].title}</h4>
+                            <p class="text-xs text-gray-600">${data.steps[0].desc}</p>
+                        </div>
+                        <div class="hidden md:flex items-center justify-center text-gray-400 text-2xl">${locale.ui.arrow}</div>
+                        <div class="bg-green-50 p-4 rounded-lg border border-green-100 flex flex-col items-center justify-center">
+                            <div class="text-4xl mb-2">🧠</div>
+                            <h4 class="font-bold text-green-800">${data.steps[1].title}</h4>
+                            <p class="text-xs text-gray-600">${data.steps[1].desc}</p>
+                        </div>
+                        <div class="hidden md:flex items-center justify-center text-gray-400 text-2xl">${locale.ui.arrow}</div>
+                        <div class="bg-orange-50 p-4 rounded-lg border border-orange-100 flex flex-col items-center justify-center">
+                            <div class="text-4xl mb-2">📱</div>
+                            <h4 class="font-bold text-orange-800">${data.steps[2].title}</h4>
+                            <p class="text-xs text-gray-600">${data.steps[2].desc}</p>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Comparison -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
+                        <div class="bg-white p-6 rounded-xl shadow-sm">
+                            <h3 class="text-xl font-bold mb-4 text-gray-800">${data.costTitle}</h3>
+                            <div class="chart-container">
+                                <canvas id="costChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="space-y-4 ${isRtl ? 'rtl-text' : ''}">
+                            <h3 class="text-xl font-bold text-gray-800">${data.advantagesTitle}</h3>
+                            <ul class="space-y-3">
+                                <li class="flex items-start ${isRtl ? 'rtl-flex' : ''}">
+                                    <span class="text-green-600 mr-2 ${isRtl ? 'rtl-icon' : ''}">✅</span>
+                                    <div>
+                                        <span class="font-bold">${data.advantages[0].title}</span> ${data.advantages[0].text}
+                                    </div>
+                                </li>
+                                <li class="flex items-start ${isRtl ? 'rtl-flex' : ''}">
+                                    <span class="text-green-600 mr-2 ${isRtl ? 'rtl-icon' : ''}">✅</span>
+                                    <div>
+                                        <span class="font-bold">${data.advantages[1].title}</span> ${data.advantages[1].text}
+                                    </div>
+                                </li>
+                                <li class="flex items-start ${isRtl ? 'rtl-flex' : ''}">
+                                    <span class="text-green-600 mr-2 ${isRtl ? 'rtl-icon' : ''}">✅</span>
+                                    <div>
+                                        <span class="font-bold">${data.advantages[2].title}</span> ${data.advantages[2].text}
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+            `;
+        }
+
+        // 3. TECH SECTION
+        function renderTechSection() {
+            const data = getLocale().content.tech;
+            const locale = getLocale();
+            const isRtl = appData.currentLang === 'ar';
+            return `
+                <section class="space-y-8">
+                    <div class="bg-gray-900 text-white rounded-xl shadow-sm p-8">
+                        <h2 class="text-2xl font-bold mb-2">${data.title}</h2>
+                        <p class="text-gray-300">${data.subtitleBefore}<span class="text-yellow-400 font-bold">${data.subtitleHighlight}</span>${data.subtitleAfter}</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Left: Explanation -->
+                        <div class="space-y-6">
+                            <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 rtl-border-accent ${isRtl ? 'rtl-text' : ''}">
+                                <h4 class="font-bold text-lg mb-2">${data.inputsTitle}</h4>
+                                <ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
+                                    ${data.inputs.map(item => `<li><span class="font-semibold">${item.label}</span> ${item.text}</li>`).join('')}
+                                </ul>
+                            </div>
+
+                            <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-purple-500 rtl-border-accent ${isRtl ? 'rtl-text' : ''}">
+                                <h4 class="font-bold text-lg mb-2">${data.debateTitle}</h4>
+                                <p class="text-sm text-gray-700 mb-3">
+                                    ${data.debateText1}
+                                </p>
+                                <p class="text-sm text-gray-700">
+                                    <span class="font-bold text-purple-700">${data.debateHighlight}</span> ${data.debateText2}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Right: Chart -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">${data.performanceTitle}</h3>
+                            <div class="chart-container">
+                                <canvas id="modelChart"></canvas>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2 text-center">${data.performanceNote}</p>
+                        </div>
+                    </div>
+
+                    <!-- Implementation Steps -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">${data.pipelineTitle}</h3>
+                        <div class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-xl shadow-sm ${isRtl ? 'rtl-text' : ''}">
+                            ${data.pipelineSteps.map((step, index) => `
+                                <div class="text-center p-2">
+                                    <div class="font-mono text-xs bg-gray-200 p-1 rounded mb-1">${step.tool}</div>
+                                    <div class="font-bold">${step.step}</div>
+                                    <div class="text-xs text-gray-500">${step.sub}</div>
+                                </div>
+                                ${index < data.pipelineSteps.length - 1 ? `<div class="text-gray-400 text-xl">${locale.ui.arrow}</div>` : ''}
+                            `).join('')}
+                        </div>
+                    </div>
+                </section>
+            `;
+        }
+
+        // 4. ROADMAP SECTION
+        function renderRoadmapSection() {
+            const data = getLocale().content.roadmap;
+            const isRtl = appData.currentLang === 'ar';
+            return `
+                <section class="space-y-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        
+                        <!-- Business Model -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm">
+                            <h3 class="text-xl font-bold text-[#556B2F] mb-4">${data.businessTitle}</h3>
+                            <div class="space-y-4 ${isRtl ? 'rtl-text' : ''}">
+                                <div class="border border-gray-200 rounded-lg p-4 hover:border-[#556B2F] transition-colors">
+                                    <h4 class="font-bold">${data.businessCards[0].title}</h4>
+                                    <p class="text-sm text-gray-600">${data.businessCards[0].text}</p>
+                                </div>
+                                <div class="border border-gray-200 rounded-lg p-4 hover:border-[#556B2F] transition-colors">
+                                    <h4 class="font-bold">${data.businessCards[1].title}</h4>
+                                    <p class="text-sm text-gray-600">${data.businessCards[1].text}</p>
+                                </div>
+                                <div class="border border-gray-200 rounded-lg p-4 hover:border-[#556B2F] transition-colors">
+                                    <h4 class="font-bold">${data.businessCards[2].title}</h4>
+                                    <p class="text-sm text-gray-600">${data.businessCards[2].text}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Roadmap -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm relative overflow-hidden">
+                            <h3 class="text-xl font-bold text-[#556B2F] mb-4">${data.roadmapTitle}</h3>
+                            <div class="absolute left-10 top-16 bottom-10 w-0.5 bg-gray-200 roadmap-line"></div>
+                            
+                            <div class="space-y-8 relative ${isRtl ? 'rtl-text' : ''}">
+                                <div class="flex items-start ${isRtl ? 'rtl-flex' : ''}">
+                                    <div class="bg-green-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold z-10 shrink-0">1</div>
+                                    <div class="ml-4 roadmap-text">
+                                        <h4 class="font-bold text-sm uppercase tracking-wide text-green-600">${data.phases[0].title}</h4>
+                                        <p class="text-sm text-gray-600">${data.phases[0].text}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start ${isRtl ? 'rtl-flex' : ''}">
+                                    <div class="bg-gray-300 text-gray-600 w-8 h-8 rounded-full flex items-center justify-center font-bold z-10 shrink-0">2</div>
+                                    <div class="ml-4 roadmap-text">
+                                        <h4 class="font-bold text-sm uppercase tracking-wide text-gray-600">${data.phases[1].title}</h4>
+                                        <p class="text-sm text-gray-600">${data.phases[1].text}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start ${isRtl ? 'rtl-flex' : ''}">
+                                    <div class="bg-gray-300 text-gray-600 w-8 h-8 rounded-full flex items-center justify-center font-bold z-10 shrink-0">3</div>
+                                    <div class="ml-4 roadmap-text">
+                                        <h4 class="font-bold text-sm uppercase tracking-wide text-gray-600">${data.phases[2].title}</h4>
+                                        <p class="text-sm text-gray-600">${data.phases[2].text}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            `;
+        }
+
+        // --- CHART INITIALIZERS ---
+
+        function initContextChart() {
+            const locale = getLocale().charts.context;
+            const ctx = document.getElementById('contextChart').getContext('2d');
+            if (contextChartInstance) contextChartInstance.destroy();
+            contextChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: locale.labels,
+                    datasets: [
+                        {
+                            label: locale.precipLabel,
+                            data: [60, 55, 50, 40, 20, 5, 1, 2, 10, 30, 50, 65],
+                            borderColor: '#4682B4',
+                            backgroundColor: 'rgba(70, 130, 180, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: locale.needLabel,
+                            data: [15, 20, 30, 45, 60, 80, 90, 85, 60, 40, 25, 15],
+                            borderColor: '#556B2F',
+                            borderDash: [5, 5],
+                            tension: 0.4,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: { mode: 'index', intersect: false },
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        y: { title: { display: true, text: locale.yTitle } }
+                    }
+                }
+            });
+        }
+
+        function initCostChart() {
+            const locale = getLocale().charts.cost;
+            const ctx = document.getElementById('costChart').getContext('2d');
+            if (costChartInstance) costChartInstance.destroy();
+            costChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: locale.labels,
+                    datasets: [
+                        {
+                            label: locale.classicLabel,
+                            data: [15000, 5000, 2000], // Expensive hardware
+                            backgroundColor: '#9CA3AF'
+                        },
+                        {
+                            label: locale.oleasatLabel,
+                            data: [0, 0, 3000], // Only subscription
+                            backgroundColor: '#556B2F'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        title: { display: true, text: locale.title }
+                    },
+                    scales: {
+                        y: { stacked: true },
+                        x: { stacked: true }
+                    }
+                }
+            });
+        }
+
+        function initModelChart() {
+            const locale = getLocale().charts.model;
+            const ctx = document.getElementById('modelChart').getContext('2d');
+            if (modelChartInstance) modelChartInstance.destroy();
+            modelChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: locale.labels,
+                    datasets: [
+                        {
+                            label: locale.lstmLabel,
+                            data: [0.12, 0.15, 0.18, 0.22, 0.25, 0.30, 0.35], // Higher error over time
+                            borderColor: '#EF4444',
+                            borderWidth: 2,
+                            tension: 0.3
+                        },
+                        {
+                            label: locale.tftLabel,
+                            data: [0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11], // Lower error, more stable
+                            borderColor: '#10B981',
+                            borderWidth: 2,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.raw + locale.tooltipSuffix;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: locale.yTitle },
+                            suggestedMax: 0.4
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- INIT ---
+        const storedLang = localStorage.getItem('lang');
+        if (storedLang && appData.translations[storedLang]) {
+            appData.currentLang = storedLang;
+        }
+
+        applyLanguage();
+        renderContent(appData.currentTab);
+        initNav();
+
+    </script>
+</body>
+
+</html>

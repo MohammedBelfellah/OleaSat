@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OleaSat — Full Stack Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0a;
+    --bg2: #0f1410;
+    --bg3: #141a14;
+    --card: #111611;
+    --border: #1e2a1e;
+    --border2: #2a3a2a;
+    --green: #4ade80;
+    --green2: #22c55e;
+    --green3: #16a34a;
+    --green-dim: #15803d44;
+    --blue: #60a5fa;
+    --blue-dim: #1d4ed844;
+    --amber: #fbbf24;
+    --amber-dim: #92400e44;
+    --red: #f87171;
+    --red-dim: #7f1d1d44;
+    --purple: #c084fc;
+    --purple-dim: #6b21a844;
+    --text: #e8f0e8;
+    --text2: #9aad9a;
+    --text3: #5a6e5a;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Playfair Display', serif;
+    --sans: 'DM Sans', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+  /* NOISE TEXTURE */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(10,12,10,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-logo span { color: var(--text3); }
+  .nav-links {
+    display: flex;
+    gap: 1.5rem;
+    list-style: none;
+  }
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text3);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--green); }
+
+  /* HERO */
+  .hero {
+    padding: 140px 2rem 80px;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .hero-badge {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    border: 1px solid var(--green-dim);
+    background: var(--green-dim);
+    padding: 4px 12px;
+    border-radius: 999px;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 900;
+    line-height: 1.05;
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--green);
+  }
+  .hero-sub {
+    font-size: 1.05rem;
+    color: var(--text2);
+    max-width: 600px;
+    margin-bottom: 3rem;
+    font-weight: 300;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+  .hero-meta-item {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text3);
+  }
+  .hero-meta-item strong {
+    display: block;
+    color: var(--text);
+    font-size: 0.85rem;
+    margin-top: 2px;
+  }
+
+  /* GRID DECORATION */
+  .hero::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 100px;
+    width: 480px;
+    height: 480px;
+    background: radial-gradient(circle at center, #15803d18 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* SECTION */
+  section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text3);
+    margin-bottom: 0.5rem;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    font-weight: 700;
+    margin-bottom: 2rem;
+    color: var(--text);
+  }
+  .section-title em {
+    font-style: normal;
+    color: var(--green);
+  }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0 2rem;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--border2); }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.75rem;
+  }
+  .card p {
+    font-size: 0.88rem;
+    color: var(--text2);
+    line-height: 1.7;
+  }
+
+  /* GRID LAYOUTS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    nav .nav-links { display: none; }
+  }
+  @media (max-width: 1100px) {
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* SYSTEM FLOW */
+  .flow-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .flow-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: 
+      linear-gradient(90deg, var(--border) 1px, transparent 1px),
+      linear-gradient(0deg, var(--border) 1px, transparent 1px);
+    background-size: 32px 32px;
+    opacity: 0.3;
+  }
+  .flow-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 1rem;
+  }
+  .flow-node {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    position: relative;
+  }
+  .flow-node.green { border-color: var(--green3); background: #0f1f12; }
+  .flow-node.blue { border-color: #1d4ed8; background: #0c1220; }
+  .flow-node.amber { border-color: #92400e; background: #1a120a; }
+  .flow-node.purple { border-color: #6b21a8; background: #130c1a; }
+  .flow-node.red { border-color: #7f1d1d; background: #1a0c0c; }
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 1.2rem;
+  }
+  .flow-node-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text3);
+    margin-bottom: 4px;
+  }
+  .flow-node-title {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .flow-node-title.green { color: var(--green); }
+  .flow-node-title.blue { color: var(--blue); }
+  .flow-node-title.amber { color: var(--amber); }
+  .flow-node-title.purple { color: var(--purple); }
+  .flow-node-title.red { color: var(--red); }
+  .flow-node-desc {
+    font-size: 0.75rem;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+  .flow-vertical-arrow {
+    display: flex;
+    justify-content: center;
+    padding: 6px 0;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 1.2rem;
+    z-index: 1;
+    position: relative;
+  }
+
+  /* TECH STACK TABLE */
+  .tech-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+  }
+  .tech-table th {
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border2);
+    color: var(--text3);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 400;
+  }
+  .tech-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .tech-table tr:last-child td { border-bottom: none; }
+  .tech-table td:first-child { color: var(--text3); width: 20%; }
+  .tech-table td:nth-child(2) { color: var(--text); width: 25%; }
+  .tech-table td:nth-child(3) { color: var(--text2); }
+  .tech-table tr:hover td { background: var(--bg2); }
+  .tech-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-family: var(--mono);
+    margin: 2px;
+  }
+  .chip-green { background: var(--green-dim); color: var(--green); border: 1px solid var(--green3); }
+  .chip-blue { background: var(--blue-dim); color: var(--blue); border: 1px solid #1d4ed8; }
+  .chip-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid #92400e; }
+  .chip-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid #6b21a8; }
+  .chip-red { background: var(--red-dim); color: var(--red); border: 1px solid #7f1d1d; }
+
+  /* DB SCHEMA */
+  .schema-table {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+  .schema-table-header {
+    background: var(--green-dim);
+    border-bottom: 1px solid var(--green3);
+    padding: 10px 16px;
+    color: var(--green);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+  }
+  .schema-row {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    align-items: baseline;
+  }
+  .schema-row:last-child { border-bottom: none; }
+  .schema-col-name { color: var(--blue); width: 45%; }
+  .schema-col-type { color: var(--amber); width: 35%; font-size: 0.7rem; }
+  .schema-col-note { color: var(--text3); font-size: 0.68rem; }
+  .pk { color: var(--green) !important; }
+
+  /* ROADMAP */
+  .roadmap {
+    position: relative;
+    padding-left: 2rem;
+  }
+  .roadmap::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 12px;
+    bottom: 12px;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--green), var(--border));
+  }
+  .roadmap-phase {
+    position: relative;
+    margin-bottom: 2rem;
+  }
+  .roadmap-phase::before {
+    content: '';
+    position: absolute;
+    left: -30px;
+    top: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    border: 2px solid var(--bg);
+  }
+  .roadmap-phase.future::before { background: var(--border2); }
+  .roadmap-phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0.75rem;
+  }
+  .roadmap-phase-tag {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid var(--green3);
+  }
+  .roadmap-phase.future .roadmap-phase-tag {
+    background: var(--bg3);
+    color: var(--text3);
+    border-color: var(--border);
+  }
+  .roadmap-phase-title {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .roadmap-task {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+    font-size: 0.83rem;
+    color: var(--text2);
+  }
+  .roadmap-task::before {
+    content: '─';
+    color: var(--text3);
+    font-family: var(--mono);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* API ENDPOINTS */
+  .endpoint {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    transition: background 0.15s;
+  }
+  .endpoint:last-child { border-bottom: none; }
+  .endpoint:hover { background: var(--bg2); }
+  .method {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    min-width: 52px;
+    text-align: center;
+  }
+  .method.get { background: var(--green-dim); color: var(--green); border: 1px solid var(--green3); }
+  .method.post { background: var(--blue-dim); color: var(--blue); border: 1px solid #1d4ed8; }
+  .method.delete { background: var(--red-dim); color: var(--red); border: 1px solid #7f1d1d; }
+  .method.put { background: var(--amber-dim); color: var(--amber); border: 1px solid #92400e; }
+  .endpoint-path { color: var(--text); flex: 1; }
+  .endpoint-desc { color: var(--text3); font-size: 0.7rem; }
+
+  /* CODE BLOCK */
+  .code-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.7;
+  }
+  .code-line { display: block; }
+  .c-comment { color: #4a5e4a; }
+  .c-keyword { color: var(--purple); }
+  .c-string { color: var(--green); }
+  .c-type { color: var(--amber); }
+  .c-func { color: var(--blue); }
+  .c-var { color: var(--text); }
+
+  /* SCROLL ANIMATION */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* PROGRESS BAR */
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--green3), var(--green));
+    transition: width 1s ease;
+  }
+
+  /* LAYER DIAGRAM */
+  .layer {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 8px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: default;
+  }
+  .layer:hover { border-color: var(--border2); background: var(--bg2); }
+  .layer-icon {
+    font-size: 1.4rem;
+    width: 40px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .layer-name {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .layer-tech {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 3rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .footer-logo {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    color: var(--green);
+  }
+  .footer-text {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text3);
+  }
+
+  /* CURSOR LINE ANIMATION */
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+  .cursor { display: inline-block; width: 2px; height: 1em; background: var(--green); margin-left: 2px; animation: blink 1s infinite; vertical-align: text-bottom; }
+
+  /* SCROLL INDICATOR */
+  .scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    background: var(--green);
+    z-index: 200;
+    transition: width 0.1s;
+  }
+</style>
+</head>
+<body>
+
+<div class="scroll-progress" id="scrollProgress"></div>
+
+<nav>
+  <div class="nav-logo">🛰 OleaSat <span>/ Architecture Blueprint</span></div>
+  <ul class="nav-links">
+    <li><a href="#system">System</a></li>
+    <li><a href="#stack">Tech Stack</a></li>
+    <li><a href="#api">API</a></li>
+    <li><a href="#database">Database</a></li>
+    <li><a href="#pipeline">AI Pipeline</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero reveal" id="top">
+  <div class="hero-badge">⬡ Full Stack Architecture — Start to End</div>
+  <h1>Build <em>OleaSat</em>.<br>From Zero to Production.</h1>
+  <p class="hero-sub">A complete engineering blueprint: satellite data ingestion, sensorless AI inference, REST API, and farmer-facing mobile app — built for Moroccan olive agriculture.</p>
+  <div class="hero-meta">
+    <div class="hero-meta-item">Stack<strong>FastAPI + Next.js</strong></div>
+    <div class="hero-meta-item">Data<strong>Sentinel-2 + ERA5-Land</strong></div>
+    <div class="hero-meta-item">Model<strong>TFT (Transformer)</strong></div>
+    <div class="hero-meta-item">Phase<strong>MVP → Production</strong></div>
+    <div class="hero-meta-item">Target<strong>Meknes/Fes Region</strong></div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SYSTEM OVERVIEW -->
+<section id="system">
+  <div class="section-label">01 — Architecture Overview</div>
+  <div class="section-title">The Full System <em>Flow</em></div>
+
+  <div class="flow-container reveal">
+
+    <!-- Row 1: User Layer -->
+    <div class="flow-row">
+      <div class="flow-node green">
+        <div class="flow-node-label">User Layer</div>
+        <div class="flow-node-title green">🌐 Web App (Next.js)</div>
+        <div class="flow-node-desc">Map + polygon draw, Dashboard, Charts, Recommendations</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node green">
+        <div class="flow-node-label">User Layer</div>
+        <div class="flow-node-title green">📱 Mobile App (React Native)</div>
+        <div class="flow-node-desc">Farmer-first UI, SMS bridge, offline-ready alerts</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node green">
+        <div class="flow-node-label">Notifications</div>
+        <div class="flow-node-title green">📨 SMS / WhatsApp</div>
+        <div class="flow-node-desc">Twilio / Africa's Talking — push irrigation alerts</div>
+      </div>
+    </div>
+
+    <div class="flow-vertical-arrow">↓</div>
+
+    <!-- Row 2: API Layer -->
+    <div class="flow-row">
+      <div class="flow-node blue">
+        <div class="flow-node-label">API Layer</div>
+        <div class="flow-node-title blue">⚡ FastAPI (REST)</div>
+        <div class="flow-node-desc">Auth, Parcels CRUD, Analytics, Recommendations, Job trigger</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node blue">
+        <div class="flow-node-label">Auth</div>
+        <div class="flow-node-title blue">🔑 JWT + OAuth</div>
+        <div class="flow-node-desc">User sessions, API keys for B2G clients</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node blue">
+        <div class="flow-node-label">Queue</div>
+        <div class="flow-node-title blue">📬 Celery + Redis</div>
+        <div class="flow-node-desc">Async job dispatch for extraction & inference</div>
+      </div>
+    </div>
+
+    <div class="flow-vertical-arrow">↓</div>
+
+    <!-- Row 3: Data Pipeline -->
+    <div class="flow-row">
+      <div class="flow-node amber">
+        <div class="flow-node-label">Satellite Data</div>
+        <div class="flow-node-title amber">🛰 GEE Extractor</div>
+        <div class="flow-node-desc">Sentinel-2 SR → cloud mask → NDVI/NDWI/B11 per polygon</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node amber">
+        <div class="flow-node-label">Weather Data</div>
+        <div class="flow-node-title amber">🌡 ERA5-Land + Open-Meteo</div>
+        <div class="flow-node-desc">Temp, rainfall, ET₀, solar radiation — daily resolution</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node amber">
+        <div class="flow-node-label">Feature Engineering</div>
+        <div class="flow-node-title amber">⚙️ Pipeline (Pandas)</div>
+        <div class="flow-node-desc">Lag features, rolling stats, anomalies, static soil join</div>
+      </div>
+    </div>
+
+    <div class="flow-vertical-arrow">↓</div>
+
+    <!-- Row 4: AI Layer -->
+    <div class="flow-row">
+      <div class="flow-node purple">
+        <div class="flow-node-label">AI — Phase 1</div>
+        <div class="flow-node-title purple">🌳 XGBoost (MVP)</div>
+        <div class="flow-node-desc">Fast baseline, interpretable, works with small datasets</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node purple">
+        <div class="flow-node-label">AI — Phase 2</div>
+        <div class="flow-node-title purple">🧠 TFT Transformer</div>
+        <div class="flow-node-desc">Attention over 60-day lookback, satellite + meteo fusion</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node purple">
+        <div class="flow-node-label">Inference Service</div>
+        <div class="flow-node-title purple">🔮 ML API (FastAPI)</div>
+        <div class="flow-node-desc">Model versioning, confidence score, irrigation_liters output</div>
+      </div>
+    </div>
+
+    <div class="flow-vertical-arrow">↓</div>
+
+    <!-- Row 5: Storage -->
+    <div class="flow-row">
+      <div class="flow-node red">
+        <div class="flow-node-label">Primary DB</div>
+        <div class="flow-node-title red">🗄 Postgres + PostGIS</div>
+        <div class="flow-node-desc">Users, parcels (geometry), time-series, predictions</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node red">
+        <div class="flow-node-label">Cache</div>
+        <div class="flow-node-title red">⚡ Redis</div>
+        <div class="flow-node-desc">Latest NDVI results, session store, job queue</div>
+      </div>
+      <div class="flow-arrow">─</div>
+      <div class="flow-node red">
+        <div class="flow-node-label">Object Storage</div>
+        <div class="flow-node-title red">📦 S3 / Supabase</div>
+        <div class="flow-node-desc">Satellite image crops, PDF reports, model weights</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- TECH STACK -->
+<section id="stack">
+  <div class="section-label">02 — Technology Stack</div>
+  <div class="section-title">Every Layer, <em>Chosen</em> Carefully</div>
+
+  <div class="grid-2 reveal" style="gap: 1.5rem;">
+    <!-- Left: Stack layers visual -->
+    <div>
+      <div class="layer">
+        <div class="layer-icon">🌐</div>
+        <div>
+          <div class="layer-name">Frontend</div>
+          <div class="layer-tech">
+            <span class="tech-chip chip-green">Next.js 14</span>
+            <span class="tech-chip chip-blue">React Native</span>
+            <span class="tech-chip chip-green">Tailwind</span>
+            <span class="tech-chip chip-blue">Leaflet.js</span>
+            <span class="tech-chip chip-amber">Recharts</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-icon">⚡</div>
+        <div>
+          <div class="layer-name">Backend API</div>
+          <div class="layer-tech">
+            <span class="tech-chip chip-green">FastAPI</span>
+            <span class="tech-chip chip-blue">Python 3.11</span>
+            <span class="tech-chip chip-amber">SQLAlchemy</span>
+            <span class="tech-chip chip-purple">Pydantic</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-icon">📬</div>
+        <div>
+          <div class="layer-name">Task Queue</div>
+          <div class="layer-tech">
+            <span class="tech-chip chip-red">Celery</span>
+            <span class="tech-chip chip-red">Redis</span>
+            <span class="tech-chip chip-amber">Flower (monitoring)</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-icon">🛰</div>
+        <div>
+          <div class="layer-name">Geospatial / Data</div>
+          <div class="layer-tech">
+            <span class="tech-chip chip-green">Google Earth Engine</span>
+            <span class="tech-chip chip-blue">geemap</span>
+            <span class="tech-chip chip-amber">ERA5-Land (CDS API)</span>
+            <span class="tech-chip chip-green">Shapely</span>
+            <span class="tech-chip chip-blue">GDAL</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-icon">🧠</div>
+        <div>
+          <div class="layer-name">Machine Learning</div>
+          <div class="layer-tech">
+            <span class="tech-chip chip-purple">PyTorch</span>
+            <span class="tech-chip chip-purple">pytorch-forecasting (TFT)</span>
+            <span class="tech-chip chip-amber">XGBoost</span>
+            <span class="tech-chip chip-blue">scikit-learn</span>
+            <span class="tech-chip chip-green">MLflow</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-icon">🗄</div>
+        <div>
+          <div class="layer-name">Database / Storage</div>
+          <div class="layer-tech">
+            <span class="tech-chip chip-green">PostgreSQL 16</span>
+            <span class="tech-chip chip-blue">PostGIS</span>
+            <span class="tech-chip chip-amber">Supabase</span>
+            <span class="tech-chip chip-red">S3 / MinIO</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-icon">🚀</div>
+        <div>
+          <div class="layer-name">DevOps / Deploy</div>
+          <div class="layer-tech">
+            <span class="tech-chip chip-blue">Docker</span>
+            <span class="tech-chip chip-blue">docker-compose</span>
+            <span class="tech-chip chip-green">GitHub Actions</span>
+            <span class="tech-chip chip-amber">Railway / Render</span>
+            <span class="tech-chip chip-purple">Nginx</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Stack comparison table -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <table class="tech-table">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Choice</th>
+            <th>Why This One</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Web Map</td>
+            <td><span class="tech-chip chip-blue">Leaflet.js</span></td>
+            <td>Free, polygon drawing, GeoJSON native</td>
+          </tr>
+          <tr>
+            <td>API Framework</td>
+            <td><span class="tech-chip chip-green">FastAPI</span></td>
+            <td>Async, auto-docs (OpenAPI), Python AI ecosystem</td>
+          </tr>
+          <tr>
+            <td>Satellite</td>
+            <td><span class="tech-chip chip-amber">GEE Python</span></td>
+            <td>Free for research, Sentinel-2 built-in, cloud mask</td>
+          </tr>
+          <tr>
+            <td>Weather</td>
+            <td><span class="tech-chip chip-amber">ERA5-Land</span></td>
+            <td>9km resolution, 1950–present, free CDS API</td>
+          </tr>
+          <tr>
+            <td>ML Baseline</td>
+            <td><span class="tech-chip chip-amber">XGBoost</span></td>
+            <td>Works with 1k samples, fast, interpretable SHAP</td>
+          </tr>
+          <tr>
+            <td>ML Advanced</td>
+            <td><span class="tech-chip chip-purple">TFT</span></td>
+            <td>Attention over long sequences, multi-input fusion</td>
+          </tr>
+          <tr>
+            <td>DB</td>
+            <td><span class="tech-chip chip-green">PostGIS</span></td>
+            <td>Geom queries, ST_Intersects, polygon storage</td>
+          </tr>
+          <tr>
+            <td>SMS</td>
+            <td><span class="tech-chip chip-red">Africa's Talking</span></td>
+            <td>Morocco coverage, cheaper than Twilio, Arabic</td>
+          </tr>
+          <tr>
+            <td>Experiment tracking</td>
+            <td><span class="tech-chip chip-purple">MLflow</span></td>
+            <td>Model versions, metrics, artifacts — self-hosted</td>
+          </tr>
+          <tr>
+            <td>Hosting (MVP)</td>
+            <td><span class="tech-chip chip-blue">Railway</span></td>
+            <td>1-command deploy, Postgres included, free tier</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- API ENDPOINTS -->
+<section id="api">
+  <div class="section-label">03 — REST API Design</div>
+  <div class="section-title">Full <em>Endpoint</em> Reference</div>
+
+  <div class="grid-2 reveal" style="gap: 1.5rem;">
+    <!-- Auth + Users -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);">
+        <div class="card-title" style="color: var(--green);">Auth & Users</div>
+      </div>
+      <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/auth/register</span><span class="endpoint-desc">Create farmer account</span></div>
+      <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/auth/login</span><span class="endpoint-desc">Returns JWT token</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/auth/me</span><span class="endpoint-desc">Current user profile</span></div>
+      <div class="endpoint"><span class="method put">PUT</span><span class="endpoint-path">/auth/me</span><span class="endpoint-desc">Update phone / prefs</span></div>
+    </div>
+
+    <!-- Parcels -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);">
+        <div class="card-title" style="color: var(--blue);">Parcels (GeoJSON)</div>
+      </div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels</span><span class="endpoint-desc">List my parcels</span></div>
+      <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/parcels</span><span class="endpoint-desc">Create parcel (GeoJSON body)</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}</span><span class="endpoint-desc">Parcel detail + status</span></div>
+      <div class="endpoint"><span class="method put">PUT</span><span class="endpoint-path">/parcels/{id}</span><span class="endpoint-desc">Update name / crop type</span></div>
+      <div class="endpoint"><span class="method delete">DELETE</span><span class="endpoint-path">/parcels/{id}</span><span class="endpoint-desc">Remove parcel</span></div>
+    </div>
+
+    <!-- Analytics -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);">
+        <div class="card-title" style="color: var(--amber);">Analytics & Indices</div>
+      </div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}/ndvi</span><span class="endpoint-desc">NDVI time series (date range)</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}/ndwi</span><span class="endpoint-desc">NDWI water stress index</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}/meteo</span><span class="endpoint-desc">Local weather history</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}/anomaly</span><span class="endpoint-desc">NDVI vs seasonal norm</span></div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);">
+        <div class="card-title" style="color: var(--purple);">AI Recommendations</div>
+      </div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}/recommend</span><span class="endpoint-desc">Today's irrigation decision</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}/forecast</span><span class="endpoint-desc">7-day water need forecast</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/parcels/{id}/history</span><span class="endpoint-desc">Past recommendations log</span></div>
+      <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/parcels/{id}/refresh</span><span class="endpoint-desc">Force-trigger data update</span></div>
+    </div>
+  </div>
+
+  <!-- Example response -->
+  <div style="margin-top: 1.5rem;" class="reveal">
+    <div class="card-title" style="margin-bottom: 0.75rem;">Example Response — <span style="color: var(--green);">GET /parcels/{id}/recommend</span></div>
+    <div class="code-block">
+<span class="code-line"><span class="c-comment">// 200 OK — Today's irrigation recommendation</span></span>
+<span class="code-line"><span class="c-var">{</span></span>
+<span class="code-line">  <span class="c-string">"parcel_id"</span><span class="c-var">: </span><span class="c-string">"prcel_abc123"</span><span class="c-var">,</span></span>
+<span class="code-line">  <span class="c-string">"date"</span><span class="c-var">: </span><span class="c-string">"2025-06-14"</span><span class="c-var">,</span></span>
+<span class="code-line">  <span class="c-string">"action"</span><span class="c-var">: </span><span class="c-string">"IRRIGATE"</span><span class="c-var">,</span>  <span class="c-comment">// or "SKIP" | "URGENT"</span></span>
+<span class="code-line">  <span class="c-string">"liters_per_tree"</span><span class="c-var">: </span><span class="c-type">20</span><span class="c-var">,</span></span>
+<span class="code-line">  <span class="c-string">"confidence"</span><span class="c-var">: </span><span class="c-type">0.87</span><span class="c-var">,</span></span>
+<span class="code-line">  <span class="c-string">"stress_index"</span><span class="c-var">: </span><span class="c-type">0.72</span><span class="c-var">,</span>  <span class="c-comment">// 0=ok → 1=critical</span></span>
+<span class="code-line">  <span class="c-string">"key_factors"</span><span class="c-var">: [</span></span>
+<span class="code-line">    <span class="c-var">{</span><span class="c-string">"factor"</span><span class="c-var">: </span><span class="c-string">"ndvi_7d_drop"</span><span class="c-var">, </span><span class="c-string">"importance"</span><span class="c-var">: </span><span class="c-type">0.41</span><span class="c-var">},</span></span>
+<span class="code-line">    <span class="c-var">{</span><span class="c-string">"factor"</span><span class="c-var">: </span><span class="c-string">"days_since_rain"</span><span class="c-var">, </span><span class="c-string">"importance"</span><span class="c-var">: </span><span class="c-type">0.35</span><span class="c-var">},</span></span>
+<span class="code-line">    <span class="c-var">{</span><span class="c-string">"factor"</span><span class="c-var">: </span><span class="c-string">"et0_3d_avg"</span><span class="c-var">, </span><span class="c-string">"importance"</span><span class="c-var">: </span><span class="c-type">0.24</span><span class="c-var">}</span></span>
+<span class="code-line">  <span class="c-var">],</span></span>
+<span class="code-line">  <span class="c-string">"message_fr"</span><span class="c-var">: </span><span class="c-string">"Arrosez 20L par arbre demain matin tôt."</span><span class="c-var">,</span></span>
+<span class="code-line">  <span class="c-string">"message_ar"</span><span class="c-var">: </span><span class="c-string">"اسق 20 لترا لكل شجرة غدا في الصباح."</span></span>
+<span class="code-line"><span class="c-var">}</span></span>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- DATABASE SCHEMA -->
+<section id="database">
+  <div class="section-label">04 — Database Schema</div>
+  <div class="section-title">PostGIS <em>Data Model</em></div>
+
+  <div class="grid-3 reveal">
+    <!-- users -->
+    <div class="schema-table">
+      <div class="schema-table-header">📋 users</div>
+      <div class="schema-row"><span class="schema-col-name pk">id</span><span class="schema-col-type">UUID PK</span><span class="schema-col-note">primary key</span></div>
+      <div class="schema-row"><span class="schema-col-name">email</span><span class="schema-col-type">VARCHAR(255)</span><span class="schema-col-note">unique</span></div>
+      <div class="schema-row"><span class="schema-col-name">phone</span><span class="schema-col-type">VARCHAR(20)</span><span class="schema-col-note">for SMS</span></div>
+      <div class="schema-row"><span class="schema-col-name">name</span><span class="schema-col-type">VARCHAR(100)</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">role</span><span class="schema-col-type">ENUM</span><span class="schema-col-note">user / admin / b2g</span></div>
+      <div class="schema-row"><span class="schema-col-name">lang</span><span class="schema-col-type">CHAR(2)</span><span class="schema-col-note">fr / ar / en</span></div>
+      <div class="schema-row"><span class="schema-col-name">created_at</span><span class="schema-col-type">TIMESTAMPTZ</span><span class="schema-col-note">auto</span></div>
+    </div>
+
+    <!-- parcels -->
+    <div class="schema-table">
+      <div class="schema-table-header">🌿 parcels</div>
+      <div class="schema-row"><span class="schema-col-name pk">id</span><span class="schema-col-type">UUID PK</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">user_id</span><span class="schema-col-type">UUID FK</span><span class="schema-col-note">→ users</span></div>
+      <div class="schema-row"><span class="schema-col-name">name</span><span class="schema-col-type">VARCHAR(100)</span><span class="schema-col-note">farm name</span></div>
+      <div class="schema-row"><span class="schema-col-name">geom</span><span class="schema-col-type">GEOMETRY(Polygon, 4326)</span><span class="schema-col-note">PostGIS</span></div>
+      <div class="schema-row"><span class="schema-col-name">area_ha</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">computed</span></div>
+      <div class="schema-row"><span class="schema-col-name">crop_type</span><span class="schema-col-type">VARCHAR(50)</span><span class="schema-col-note">olive, etc.</span></div>
+      <div class="schema-row"><span class="schema-col-name">soil_type</span><span class="schema-col-type">VARCHAR(50)</span><span class="schema-col-note">clay / sand / loam</span></div>
+      <div class="schema-row"><span class="schema-col-name">tree_density</span><span class="schema-col-type">INTEGER</span><span class="schema-col-note">trees / ha</span></div>
+    </div>
+
+    <!-- satellite_timeseries -->
+    <div class="schema-table">
+      <div class="schema-table-header">🛰 satellite_timeseries</div>
+      <div class="schema-row"><span class="schema-col-name pk">id</span><span class="schema-col-type">BIGSERIAL PK</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">parcel_id</span><span class="schema-col-type">UUID FK</span><span class="schema-col-note">→ parcels</span></div>
+      <div class="schema-row"><span class="schema-col-name">date</span><span class="schema-col-type">DATE</span><span class="schema-col-note">observation date</span></div>
+      <div class="schema-row"><span class="schema-col-name">ndvi</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">-1 to 1</span></div>
+      <div class="schema-row"><span class="schema-col-name">ndwi</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">water index</span></div>
+      <div class="schema-row"><span class="schema-col-name">ndsi</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">soil adjusted</span></div>
+      <div class="schema-row"><span class="schema-col-name">cloud_pct</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">0–100%</span></div>
+      <div class="schema-row"><span class="schema-col-name">quality</span><span class="schema-col-type">SMALLINT</span><span class="schema-col-note">0=bad 1=ok 2=good</span></div>
+    </div>
+
+    <!-- meteo_timeseries -->
+    <div class="schema-table">
+      <div class="schema-table-header">🌡 meteo_timeseries</div>
+      <div class="schema-row"><span class="schema-col-name pk">id</span><span class="schema-col-type">BIGSERIAL PK</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">parcel_id</span><span class="schema-col-type">UUID FK</span><span class="schema-col-note">→ parcels</span></div>
+      <div class="schema-row"><span class="schema-col-name">date</span><span class="schema-col-type">DATE</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">rain_mm</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">daily rainfall</span></div>
+      <div class="schema-row"><span class="schema-col-name">temp_max</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">°C</span></div>
+      <div class="schema-row"><span class="schema-col-name">temp_min</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">°C</span></div>
+      <div class="schema-row"><span class="schema-col-name">et0</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">evapotranspiration</span></div>
+      <div class="schema-row"><span class="schema-col-name">solar_rad</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">MJ/m²/day</span></div>
+    </div>
+
+    <!-- predictions -->
+    <div class="schema-table">
+      <div class="schema-table-header">🔮 predictions</div>
+      <div class="schema-row"><span class="schema-col-name pk">id</span><span class="schema-col-type">BIGSERIAL PK</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">parcel_id</span><span class="schema-col-type">UUID FK</span><span class="schema-col-note">→ parcels</span></div>
+      <div class="schema-row"><span class="schema-col-name">date</span><span class="schema-col-type">DATE</span><span class="schema-col-note">target date</span></div>
+      <div class="schema-row"><span class="schema-col-name">model_version</span><span class="schema-col-type">VARCHAR(20)</span><span class="schema-col-note">xgb_v1 / tft_v2</span></div>
+      <div class="schema-row"><span class="schema-col-name">stress_score</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">0–1</span></div>
+      <div class="schema-row"><span class="schema-col-name">water_need_mm</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">mm to apply</span></div>
+      <div class="schema-row"><span class="schema-col-name">confidence</span><span class="schema-col-type">FLOAT</span><span class="schema-col-note">0–1</span></div>
+      <div class="schema-row"><span class="schema-col-name">shap_features</span><span class="schema-col-type">JSONB</span><span class="schema-col-note">feature importances</span></div>
+    </div>
+
+    <!-- recommendations -->
+    <div class="schema-table">
+      <div class="schema-table-header">📨 recommendations</div>
+      <div class="schema-row"><span class="schema-col-name pk">id</span><span class="schema-col-type">BIGSERIAL PK</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">parcel_id</span><span class="schema-col-type">UUID FK</span><span class="schema-col-note">→ parcels</span></div>
+      <div class="schema-row"><span class="schema-col-name">date</span><span class="schema-col-type">DATE</span><span class="schema-col-note"></span></div>
+      <div class="schema-row"><span class="schema-col-name">action</span><span class="schema-col-type">ENUM</span><span class="schema-col-note">SKIP / IRRIGATE / URGENT</span></div>
+      <div class="schema-row"><span class="schema-col-name">liters_per_tree</span><span class="schema-col-type">INTEGER</span><span class="schema-col-note">0 if SKIP</span></div>
+      <div class="schema-row"><span class="schema-col-name">sent_sms</span><span class="schema-col-type">BOOLEAN</span><span class="schema-col-note">SMS dispatched?</span></div>
+      <div class="schema-row"><span class="schema-col-name">message_fr</span><span class="schema-col-type">TEXT</span><span class="schema-col-note">human-readable</span></div>
+      <div class="schema-row"><span class="schema-col-name">message_ar</span><span class="schema-col-type">TEXT</span><span class="schema-col-note">Arabic version</span></div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- AI PIPELINE -->
+<section id="pipeline">
+  <div class="section-label">05 — AI / Data Pipeline</div>
+  <div class="section-title">From <em>Pixels</em> to Prediction</div>
+
+  <div class="grid-2 reveal" style="gap: 1.5rem;">
+    <!-- GEE Pipeline code -->
+    <div>
+      <div class="card-title" style="margin-bottom: 0.75rem;">Step 1 — GEE Sentinel-2 Extraction</div>
+      <div class="code-block">
+<span class="code-line"><span class="c-keyword">import</span> <span class="c-var">ee</span></span>
+<span class="code-line"><span class="c-keyword">import</span> <span class="c-var">geemap</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-func">ee.Initialize</span><span class="c-var">()</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-keyword">def</span> <span class="c-func">compute_indices</span><span class="c-var">(image):</span></span>
+<span class="code-line">  <span class="c-var">ndvi = image.</span><span class="c-func">normalizedDifference</span><span class="c-var">([</span><span class="c-string">'B8'</span><span class="c-var">, </span><span class="c-string">'B4'</span><span class="c-var">]).</span><span class="c-func">rename</span><span class="c-var">(</span><span class="c-string">'NDVI'</span><span class="c-var">)</span></span>
+<span class="code-line">  <span class="c-var">ndwi = image.</span><span class="c-func">normalizedDifference</span><span class="c-var">([</span><span class="c-string">'B8A'</span><span class="c-var">, </span><span class="c-string">'B11'</span><span class="c-var">]).</span><span class="c-func">rename</span><span class="c-var">(</span><span class="c-string">'NDWI'</span><span class="c-var">)</span></span>
+<span class="code-line">  <span class="c-keyword">return</span> <span class="c-var">image.</span><span class="c-func">addBands</span><span class="c-var">([ndvi, ndwi])</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-keyword">def</span> <span class="c-func">extract_parcel_timeseries</span><span class="c-var">(geojson, start, end):</span></span>
+<span class="code-line">  <span class="c-var">aoi = ee.Geometry.</span><span class="c-func">Polygon</span><span class="c-var">(geojson[</span><span class="c-string">'coordinates'</span><span class="c-var">])</span></span>
+<span class="code-line">  <span class="c-var">col = (ee.ImageCollection(</span><span class="c-string">'COPERNICUS/S2_SR_HARMONIZED'</span><span class="c-var">)</span></span>
+<span class="code-line">    <span class="c-var">.</span><span class="c-func">filterBounds</span><span class="c-var">(aoi)</span></span>
+<span class="code-line">    <span class="c-var">.</span><span class="c-func">filterDate</span><span class="c-var">(start, end)</span></span>
+<span class="code-line">    <span class="c-var">.</span><span class="c-func">filter</span><span class="c-var">(ee.Filter.</span><span class="c-func">lt</span><span class="c-var">(</span><span class="c-string">'CLOUDY_PIXEL_PERCENTAGE'</span><span class="c-var">, </span><span class="c-type">20</span><span class="c-var">))</span></span>
+<span class="code-line">    <span class="c-var">.</span><span class="c-func">map</span><span class="c-var">(compute_indices))</span></span>
+<span class="code-line">  <span class="c-comment"># Reduce to mean per image per polygon</span></span>
+<span class="code-line">  <span class="c-keyword">return</span> <span class="c-var">col.</span><span class="c-func">getRegion</span><span class="c-var">(aoi, scale=</span><span class="c-type">10</span><span class="c-var">).</span><span class="c-func">getInfo</span><span class="c-var">()</span></span>
+      </div>
+
+      <div class="card-title" style="margin: 1.5rem 0 0.75rem;">Step 2 — Feature Engineering</div>
+      <div class="code-block">
+<span class="code-line"><span class="c-comment"># After merging satellite + meteo DataFrames</span></span>
+<span class="code-line"><span class="c-keyword">def</span> <span class="c-func">build_features</span><span class="c-var">(df):</span></span>
+<span class="code-line">  <span class="c-comment"># Lag features (what was NDVI 5, 10, 15d ago?)</span></span>
+<span class="code-line">  <span class="c-keyword">for</span> <span class="c-var">lag in [</span><span class="c-type">5</span><span class="c-var">, </span><span class="c-type">10</span><span class="c-var">, </span><span class="c-type">15</span><span class="c-var">, </span><span class="c-type">30</span><span class="c-var">]:</span></span>
+<span class="code-line">    <span class="c-var">df[</span><span class="c-string">f'ndvi_lag_{lag}'</span><span class="c-var">] = df[</span><span class="c-string">'ndvi'</span><span class="c-var">].</span><span class="c-func">shift</span><span class="c-var">(lag)</span></span>
+<span class="code-line">  <span class="c-comment"># Rolling stats</span></span>
+<span class="code-line">  <span class="c-var">df[</span><span class="c-string">'rain_14d'</span><span class="c-var">] = df[</span><span class="c-string">'rain_mm'</span><span class="c-var">].</span><span class="c-func">rolling</span><span class="c-var">(</span><span class="c-type">14</span><span class="c-var">).</span><span class="c-func">sum</span><span class="c-var">()</span></span>
+<span class="code-line">  <span class="c-var">df[</span><span class="c-string">'et0_7d'</span><span class="c-var">] = df[</span><span class="c-string">'et0'</span><span class="c-var">].</span><span class="c-func">rolling</span><span class="c-var">(</span><span class="c-type">7</span><span class="c-var">).</span><span class="c-func">mean</span><span class="c-var">()</span></span>
+<span class="code-line">  <span class="c-var">df[</span><span class="c-string">'days_no_rain'</span><span class="c-var">] = (df[</span><span class="c-string">'rain_mm'</span><span class="c-var">] == </span><span class="c-type">0</span><span class="c-var">).</span><span class="c-func">cumsum</span><span class="c-var">()</span></span>
+<span class="code-line">  <span class="c-comment"># Seasonal anomaly</span></span>
+<span class="code-line">  <span class="c-var">df[</span><span class="c-string">'ndvi_anom'</span><span class="c-var">] = df[</span><span class="c-string">'ndvi'</span><span class="c-var">] - df.</span><span class="c-func">groupby</span><span class="c-var">(</span><span class="c-string">'doy'</span><span class="c-var">)[</span><span class="c-string">'ndvi'</span><span class="c-var">].</span><span class="c-func">transform</span><span class="c-var">(</span><span class="c-string">'mean'</span><span class="c-var">)</span></span>
+<span class="code-line">  <span class="c-keyword">return</span> <span class="c-var">df.</span><span class="c-func">dropna</span><span class="c-var">()</span></span>
+      </div>
+    </div>
+
+    <!-- Right: Model + Ground truth -->
+    <div>
+      <div class="card-title" style="margin-bottom: 0.75rem;">Step 3 — Ground Truth Strategy</div>
+      <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-title" style="color: var(--amber); margin-bottom: 0.5rem;">⚠️ The Critical Missing Piece</div>
+        <p>Without labeled soil moisture data, the model can't be validated. Use one of these strategies:</p>
+        <br>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
+          <div style="border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px;">
+            <div class="card-title" style="color: var(--green); font-size: 0.7rem;">Option A — Physical Ground Truth</div>
+            <p style="font-size: 0.8rem; color: var(--text2);">Partner with 1 pilot farm → install 2-3 cheap capacitive probes (≈ 30€ each) → collect 3 months of real SWC data → use to train and validate model.</p>
+          </div>
+          <div style="border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px;">
+            <div class="card-title" style="color: var(--blue); font-size: 0.7rem;">Option B — Water Balance Proxy</div>
+            <p style="font-size: 0.8rem; color: var(--text2);">Compute daily Kc×ET₀ (FAO-56 method). Use cumulative water balance as label. No physical sensor needed — proven agronomic model.</p>
+          </div>
+          <div style="border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px;">
+            <div class="card-title" style="color: var(--purple); font-size: 0.7rem;">Option C — SMAP + ISMN Dataset</div>
+            <p style="font-size: 0.8rem; color: var(--text2);">Use NASA SMAP L4 (9km) or ISMN station data for Morocco region. Pre-existing labeled dataset. Less spatially precise but works for MVP.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-bottom: 0.75rem;">Step 4 — Model Training</div>
+      <div class="code-block">
+<span class="code-line"><span class="c-comment"># Phase 1: XGBoost Baseline (MVP)</span></span>
+<span class="code-line"><span class="c-keyword">from</span> <span class="c-var">xgboost</span> <span class="c-keyword">import</span> <span class="c-var">XGBRegressor</span></span>
+<span class="code-line"><span class="c-keyword">import</span> <span class="c-var">shap</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-var">model = </span><span class="c-func">XGBRegressor</span><span class="c-var">(n_estimators=</span><span class="c-type">300</span><span class="c-var">, max_depth=</span><span class="c-type">6</span><span class="c-var">)</span></span>
+<span class="code-line"><span class="c-var">model.</span><span class="c-func">fit</span><span class="c-var">(X_train, y_train)</span></span>
+<span class="code-line"><span class="c-comment"># Explainability → SHAP values for the API</span></span>
+<span class="code-line"><span class="c-var">explainer = shap.</span><span class="c-func">TreeExplainer</span><span class="c-var">(model)</span></span>
+<span class="code-line"><span class="c-var">shap_vals = explainer.</span><span class="c-func">shap_values</span><span class="c-var">(X_test)</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-comment"># Phase 2: TFT (when dataset is larger)</span></span>
+<span class="code-line"><span class="c-keyword">from</span> <span class="c-var">pytorch_forecasting</span> <span class="c-keyword">import</span> <span class="c-var">TemporalFusionTransformer</span></span>
+<span class="code-line"><span class="c-keyword">from</span> <span class="c-var">pytorch_forecasting.data</span> <span class="c-keyword">import</span> <span class="c-var">TimeSeriesDataSet</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-var">dataset = </span><span class="c-func">TimeSeriesDataSet</span><span class="c-var">(</span></span>
+<span class="code-line">  <span class="c-var">data=df,</span></span>
+<span class="code-line">  <span class="c-var">time_idx=</span><span class="c-string">"time_idx"</span><span class="c-var">,</span></span>
+<span class="code-line">  <span class="c-var">target=</span><span class="c-string">"water_stress"</span><span class="c-var">,</span></span>
+<span class="code-line">  <span class="c-var">group_ids=[</span><span class="c-string">"parcel_id"</span><span class="c-var">],</span></span>
+<span class="code-line">  <span class="c-var">max_encoder_length=</span><span class="c-type">60</span><span class="c-var">,   </span><span class="c-comment"># 60-day lookback</span></span>
+<span class="code-line">  <span class="c-var">max_prediction_length=</span><span class="c-type">7</span><span class="c-var">,  </span><span class="c-comment"># 7-day forecast</span></span>
+<span class="code-line"><span class="c-var">)</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- DOCKER COMPOSE -->
+<section>
+  <div class="section-label">06 — Local Dev Setup</div>
+  <div class="section-title"><em>docker-compose.yml</em> — Run It All Locally</div>
+  <div class="code-block reveal">
+<span class="code-line"><span class="c-comment"># docker-compose.yml — OleaSat Full Stack</span></span>
+<span class="code-line"><span class="c-keyword">version</span><span class="c-var">: </span><span class="c-string">'3.9'</span></span>
+<span class="code-line"><span class="c-keyword">services</span><span class="c-var">:</span></span>
+<span class="code-line">  <span class="c-type">db</span><span class="c-var">:</span></span>
+<span class="code-line">    <span class="c-var">image: postgis/postgis:16-3.4</span></span>
+<span class="code-line">    <span class="c-var">environment: { POSTGRES_DB: olea, POSTGRES_PASSWORD: dev }</span></span>
+<span class="code-line">    <span class="c-var">ports: [</span><span class="c-string">"5432:5432"</span><span class="c-var">]</span></span>
+<span class="code-line">  <span class="c-type">redis</span><span class="c-var">:</span></span>
+<span class="code-line">    <span class="c-var">image: redis:7-alpine</span></span>
+<span class="code-line">    <span class="c-var">ports: [</span><span class="c-string">"6379:6379"</span><span class="c-var">]</span></span>
+<span class="code-line">  <span class="c-type">api</span><span class="c-var">:</span></span>
+<span class="code-line">    <span class="c-var">build: ./backend</span></span>
+<span class="code-line">    <span class="c-var">ports: [</span><span class="c-string">"8000:8000"</span><span class="c-var">]</span></span>
+<span class="code-line">    <span class="c-var">env_file: .env</span></span>
+<span class="code-line">    <span class="c-var">depends_on: [db, redis]</span></span>
+<span class="code-line">    <span class="c-var">command: uvicorn main:app --host 0.0.0.0 --reload</span></span>
+<span class="code-line">  <span class="c-type">worker</span><span class="c-var">:                 </span><span class="c-comment"># Celery for async jobs</span></span>
+<span class="code-line">    <span class="c-var">build: ./backend</span></span>
+<span class="code-line">    <span class="c-var">command: celery -A tasks worker --loglevel=info</span></span>
+<span class="code-line">    <span class="c-var">depends_on: [db, redis, api]</span></span>
+<span class="code-line">  <span class="c-type">ml</span><span class="c-var">:                    </span><span class="c-comment"># ML inference microservice</span></span>
+<span class="code-line">    <span class="c-var">build: ./ml_service</span></span>
+<span class="code-line">    <span class="c-var">ports: [</span><span class="c-string">"8001:8001"</span><span class="c-var">]</span></span>
+<span class="code-line">    <span class="c-var">volumes: [./models:/models]</span></span>
+<span class="code-line">  <span class="c-type">frontend</span><span class="c-var">:</span></span>
+<span class="code-line">    <span class="c-var">build: ./frontend</span></span>
+<span class="code-line">    <span class="c-var">ports: [</span><span class="c-string">"3000:3000"</span><span class="c-var">]</span></span>
+<span class="code-line">    <span class="c-var">depends_on: [api]</span></span>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <div class="section-label">07 — Build Roadmap</div>
+  <div class="section-title">From <em>Day Zero</em> to Production</div>
+
+  <div class="grid-2 reveal" style="gap: 2rem;">
+    <div class="roadmap">
+      <div class="roadmap-phase">
+        <div class="roadmap-phase-header">
+          <span class="roadmap-phase-tag">Phase 0 — Days 1-3</span>
+        </div>
+        <div class="roadmap-phase-title">Project Setup & Foundations</div>
+        <div class="roadmap-task">Init Git repo, Docker stack, PostGIS running</div>
+        <div class="roadmap-task">FastAPI skeleton + JWT auth working</div>
+        <div class="roadmap-task">Next.js frontend + Leaflet map + polygon draw</div>
+        <div class="roadmap-task">GEE account + Python API connected</div>
+        <div style="margin-top: 10px;">
+          <div style="font-family: var(--mono); font-size: 0.65rem; color: var(--text3); margin-bottom: 4px;">Completion</div>
+          <div class="progress-bar"><div class="progress-fill" style="width: 100%"></div></div>
+        </div>
+      </div>
+
+      <div class="roadmap-phase">
+        <div class="roadmap-phase-header">
+          <span class="roadmap-phase-tag">Phase 1 — Days 4-10</span>
+        </div>
+        <div class="roadmap-phase-title">Satellite Pipeline (MVP Core)</div>
+        <div class="roadmap-task">GEE extractor: Sentinel-2 → NDVI/NDWI per polygon</div>
+        <div class="roadmap-task">ERA5 weather fetch + align to same date range</div>
+        <div class="roadmap-task">Store time series in PostGIS tables</div>
+        <div class="roadmap-task">API endpoints: /ndvi, /meteo returning JSON</div>
+        <div class="roadmap-task">Charts in frontend showing satellite history</div>
+        <div style="margin-top: 10px;">
+          <div style="font-family: var(--mono); font-size: 0.65rem; color: var(--text3); margin-bottom: 4px;">Completion</div>
+          <div class="progress-bar"><div class="progress-fill" style="width: 80%"></div></div>
+        </div>
+      </div>
+
+      <div class="roadmap-phase">
+        <div class="roadmap-phase-header">
+          <span class="roadmap-phase-tag">Phase 2 — Days 11-18</span>
+        </div>
+        <div class="roadmap-phase-title">Rules-Based Recommender</div>
+        <div class="roadmap-task">Water balance model (FAO-56 ET₀ × Kc)</div>
+        <div class="roadmap-task">NDWI anomaly detection (vs seasonal mean)</div>
+        <div class="roadmap-task">Decision logic: SKIP / IRRIGATE / URGENT</div>
+        <div class="roadmap-task">SMS integration with Africa's Talking API</div>
+        <div class="roadmap-task">Recommendation stored in DB + API endpoint</div>
+        <div style="margin-top: 10px;">
+          <div style="font-family: var(--mono); font-size: 0.65rem; color: var(--text3); margin-bottom: 4px;">Completion</div>
+          <div class="progress-bar"><div class="progress-fill" style="width: 60%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="roadmap">
+      <div class="roadmap-phase future">
+        <div class="roadmap-phase-header">
+          <span class="roadmap-phase-tag">Phase 3 — Month 1-2</span>
+        </div>
+        <div class="roadmap-phase-title">AI Baseline (XGBoost)</div>
+        <div class="roadmap-task">Ground truth data collection (probe or FAO proxy)</div>
+        <div class="roadmap-task">Feature engineering pipeline (lags, rolling, anomaly)</div>
+        <div class="roadmap-task">XGBoost model training + SHAP explainability</div>
+        <div class="roadmap-task">MLflow experiment tracking setup</div>
+        <div class="roadmap-task">ML inference microservice endpoint</div>
+        <div class="roadmap-task">A/B compare rules vs ML recommendations</div>
+        <div style="margin-top: 10px;">
+          <div style="font-family: var(--mono); font-size: 0.65rem; color: var(--text3); margin-bottom: 4px;">Completion</div>
+          <div class="progress-bar"><div class="progress-fill" style="width: 0%"></div></div>
+        </div>
+      </div>
+
+      <div class="roadmap-phase future">
+        <div class="roadmap-phase-header">
+          <span class="roadmap-phase-tag">Phase 4 — Month 3-6</span>
+        </div>
+        <div class="roadmap-phase-title">TFT Model + Pilot Farm</div>
+        <div class="roadmap-task">Partenariat with 1 farm in Meknes region</div>
+        <div class="roadmap-task">Real soil probe data collection (3 months)</div>
+        <div class="roadmap-task">Temporal Fusion Transformer training</div>
+        <div class="roadmap-task">7-day forecast endpoint</div>
+        <div class="roadmap-task">Mobile app (React Native) for farmers</div>
+        <div class="roadmap-task">Accuracy report vs baseline + vs field truth</div>
+        <div style="margin-top: 10px;">
+          <div style="font-family: var(--mono); font-size: 0.65rem; color: var(--text3); margin-bottom: 4px;">Completion</div>
+          <div class="progress-bar"><div class="progress-fill" style="width: 0%"></div></div>
+        </div>
+      </div>
+
+      <div class="roadmap-phase future">
+        <div class="roadmap-phase-header">
+          <span class="roadmap-phase-tag">Phase 5 — Month 6+</span>
+        </div>
+        <div class="roadmap-phase-title">Production & Growth</div>
+        <div class="roadmap-task">Freemium launch — Fes-Meknes region</div>
+        <div class="roadmap-task">B2G API for water basin agencies</div>
+        <div class="roadmap-task">Multi-crop support (beyond olive)</div>
+        <div class="roadmap-task">Kubernetes deployment for scale</div>
+        <div class="roadmap-task">Generation Green grant application</div>
+        <div style="margin-top: 10px;">
+          <div style="font-family: var(--mono); font-size: 0.65rem; color: var(--text3); margin-bottom: 4px;">Completion</div>
+          <div class="progress-bar"><div class="progress-fill" style="width: 0%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- START NOW -->
+<section>
+  <div class="section-label">08 — Start Now</div>
+  <div class="section-title">Your <em>First 3 Commands</em></div>
+  <div class="code-block reveal" style="max-width: 700px;">
+<span class="code-line"><span class="c-comment"># 1. Clone and setup</span></span>
+<span class="code-line"><span class="c-func">mkdir</span> <span class="c-var">oleasat && cd oleasat</span></span>
+<span class="code-line"><span class="c-func">git init</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-comment"># 2. Create folder structure</span></span>
+<span class="code-line"><span class="c-func">mkdir</span> <span class="c-var">-p backend/{api,workers,tests} frontend ml_service data notebooks</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="c-comment"># 3. Start the stack</span></span>
+<span class="code-line"><span class="c-func">docker-compose up</span> <span class="c-var">-d db redis</span></span>
+<span class="code-line"><span class="c-func">cd backend && pip install</span> <span class="c-var">fastapi uvicorn sqlalchemy geoalchemy2 celery redis geemap earthengine-api</span></span>
+<span class="code-line"><span class="c-func">uvicorn main:app --reload</span> <span class="c-comment"># → http://localhost:8000/docs</span><span class="cursor"></span></span>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">OleaSat</div>
+  <div class="footer-text">Architecture Blueprint — Hackathon Edition<br>Meknes/Fes Region · Morocco 🇲🇦</div>
+  <div style="font-family: var(--mono); font-size: 0.65rem; color: var(--text3); text-align: right;">
+    Sentinel-2 + ERA5 + TFT<br>
+    Sensorless AI for Olive Irrigation
+  </div>
+</footer>
+
+<script>
+// Scroll progress
+const progressEl = document.getElementById('scrollProgress');
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+  progressEl.style.width = pct + '%';
+});
+
+// Reveal on scroll
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.08 });
+reveals.forEach(el => observer.observe(el));
+
+// Animate progress bars when visible
+const bars = document.querySelectorAll('.progress-fill');
+const barObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const width = e.target.style.width;
+      e.target.style.width = '0%';
+      setTimeout(() => { e.target.style.width = width; }, 100);
+      barObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+bars.forEach(b => barObserver.observe(b));
+</script>
+</body>
+</html>

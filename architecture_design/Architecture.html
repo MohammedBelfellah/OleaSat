@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OleaBot – Simple Pipeline Architecture</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            background: #f7f8fc;
+            color: #111;
+        }
+
+        .wrap {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 6px;
+        }
+
+        .sub {
+            color: #444;
+            margin: 0 0 18px;
+            line-height: 1.4;
+        }
+
+        .pipeline {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .step {
+            background: #fff;
+            border: 1px solid #e7e7f1;
+            border-radius: 14px;
+            padding: 14px 14px 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .04);
+        }
+
+        .head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+        }
+
+        .num {
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 14px;
+            background: #111;
+            color: #fff;
+        }
+
+        .tag {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 0, 0, .08);
+            background: #f4f6ff;
+            color: #1f2a6a;
+            white-space: nowrap;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        @media (min-width:740px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .box {
+            border-radius: 12px;
+            padding: 10px 12px;
+            border: 1px solid rgba(0, 0, 0, .06);
+            background: #fafbff;
+        }
+
+        .box b {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 18px;
+            color: #333;
+        }
+
+        li {
+            margin: 6px 0;
+        }
+
+        .arrow {
+            text-align: center;
+            font-size: 22px;
+            color: #6b6b7a;
+            margin: 2px 0;
+            user-select: none;
+        }
+
+        /* Simple colors per step */
+        .sat {
+            border-left: 6px solid #7c3aed;
+        }
+
+        .wea {
+            border-left: 6px solid #0ea5e9;
+        }
+
+        .web {
+            border-left: 6px solid #22c55e;
+        }
+
+        .feat {
+            border-left: 6px solid #f59e0b;
+        }
+
+        .ai {
+            border-left: 6px solid #ef4444;
+        }
+
+        .bot {
+            border-left: 6px solid #111827;
+        }
+
+        .note {
+            margin-top: 14px;
+            background: #ffffff;
+            border: 1px solid #e7e7f1;
+            border-radius: 14px;
+            padding: 14px;
+        }
+
+        code {
+            background: #f1f2f8;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 12.5px;
+        }
+
+        .small {
+            color: #444;
+            line-height: 1.5;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>OleaBot – Simple Pipeline Architecture</h1>
+        <p class="sub">
+            Simple flow: <b>Satellite + Weather + Farm Data → Feature Builder → AI Message → Telegram/WhatsApp
+                updates</b>
+        </p>
+
+        <div class="pipeline">
+
+            <div class="step sat">
+                <div class="head">
+                    <div class="title">
+                        <div class="num">1</div>Satellite (Sentinel-2 / GEE)
+                    </div>
+                    <div class="tag">NDVI / NDMI</div>
+                </div>
+                <div class="grid">
+                    <div class="box">
+                        <b>Input</b>
+                        <ul>
+                            <li>Farm polygon (GeoJSON)</li>
+                            <li>Date window (ex: last 30 days)</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <b>Output</b>
+                        <ul>
+                            <li>ndvi_current, ndvi_delta</li>
+                            <li>cloud_pct, date_used</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">↓</div>
+
+            <div class="step wea">
+                <div class="head">
+                    <div class="title">
+                        <div class="num">2</div>Weather (Open-Meteo)
+                    </div>
+                    <div class="tag">ET0 + Rain</div>
+                </div>
+                <div class="grid">
+                    <div class="box">
+                        <b>Input</b>
+                        <ul>
+                            <li>lat / lon (farm centroid)</li>
+                            <li>7-day forecast</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <b>Output</b>
+                        <ul>
+                            <li>et0_daily[7], rain_daily[7]</li>
+                            <li>et0_week, rain_week</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">↓</div>
+
+            <div class="step web">
+                <div class="head">
+                    <div class="title">
+                        <div class="num">3</div>Web Page (Farmers Onboarding)
+                    </div>
+                    <div class="tag">Profile + Polygon</div>
+                </div>
+                <div class="grid">
+                    <div class="box">
+                        <b>Collect</b>
+                        <ul>
+                            <li>Soil type, slope (optional)</li>
+                            <li>Tree age, tree count, spacing</li>
+                            <li>Farm polygon (draw on map)</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <b>Store in DB</b>
+                        <ul>
+                            <li>FarmerProfile</li>
+                            <li>FarmPlot (GeoJSON)</li>
+                            <li>Telegram chat_id (for updates)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">↓</div>
+
+            <div class="step feat">
+                <div class="head">
+                    <div class="title">
+                        <div class="num">4</div>Feature Builder (+ FAO-56 baseline)
+                    </div>
+                    <div class="tag">Numbers Ready</div>
+                </div>
+                <div class="grid">
+                    <div class="box">
+                        <b>Build features</b>
+                        <ul>
+                            <li>Combine Satellite + Weather + Farm Data</li>
+                            <li>Compute FAO-56 irrigation (litres/tree)</li>
+                            <li>Create one JSON “feature vector”</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <b>Output (example)</b>
+                        <ul>
+                            <li>litres_per_tree, total_m3</li>
+                            <li>ndvi_current, ndvi_delta</li>
+                            <li>et0_week, rain_eff, phase</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">↓</div>
+
+            <div class="step ai">
+                <div class="head">
+                    <div class="title">
+                        <div class="num">5</div>AI Module (Cloud API + Prompt)
+                    </div>
+                    <div class="tag">Explain + Tips</div>
+                </div>
+                <div class="grid">
+                    <div class="box">
+                        <b>AI does</b>
+                        <ul>
+                            <li>Write message (clear + friendly)</li>
+                            <li>Explain satellite change (NDVI trend)</li>
+                            <li>Give tips (best hours, stress warning)</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <b>AI does NOT</b>
+                        <ul>
+                            <li>Replace FAO-56 math</li>
+                            <li>Decide random litres without rules</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">↓</div>
+
+            <div class="step bot">
+                <div class="head">
+                    <div class="title">
+                        <div class="num">6</div>Bot (Telegram / WhatsApp)
+                    </div>
+                    <div class="tag">Updates Only</div>
+                </div>
+                <div class="grid">
+                    <div class="box">
+                        <b>Send</b>
+                        <ul>
+                            <li>Weekly irrigation update</li>
+                            <li>Alert if stress detected</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <b>Log</b>
+                        <ul>
+                            <li>AlertRecord (sent_at, litres/tree)</li>
+                            <li>ndvi_current, ndvi_delta (audit)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="note">
+            <p class="small">
+                <b>MVP endpoints (simple):</b><br />
+                <code>POST /register</code> (profile + polygon) &nbsp;|&nbsp;
+                <code>POST /calculate?farm_id=</code> (run pipeline) &nbsp;|&nbsp;
+                <code>POST /dispatch/weekly</code> (send updates)
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

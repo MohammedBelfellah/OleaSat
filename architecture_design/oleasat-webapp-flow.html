@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OleaSat — Web App Flow & Technical Spec</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Instrument+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0d1a0e;
+  --ink2: #1c2e1d;
+  --ink3: #2e4430;
+  --paper: #f5f2eb;
+  --paper2: #ede9df;
+  --paper3: #e3ddd0;
+  --leaf: #3a7d44;
+  --leaf2: #2d6235;
+  --leaf3: #1e4524;
+  --leaf-pale: #d4edda;
+  --leaf-mid: #8fbc8f;
+  --sky: #4a90b8;
+  --sky-pale: #d6eaf8;
+  --amber: #c8860a;
+  --amber-pale: #fef3cd;
+  --red: #c0392b;
+  --red-pale: #fadbd8;
+  --mono: 'JetBrains Mono', monospace;
+  --display: 'Syne', sans-serif;
+  --body: 'Instrument Sans', sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  line-height: 1.6;
+}
+
+/* GRAIN TEXTURE */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* NAV */
+nav {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0 2.5rem;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-brand {
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--leaf-mid);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-brand span { color: rgba(255,255,255,0.35); font-weight: 400; font-size: 0.78rem; }
+.nav-pills { display: flex; gap: 4px; }
+.nav-pill {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.nav-pill:hover { background: rgba(255,255,255,0.1); color: var(--paper); }
+@media(max-width:700px){ .nav-pills { display: none; } }
+
+/* HERO */
+.hero {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 5rem 2.5rem 4rem;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -80px; right: -80px;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(58,125,68,0.18) 0%, transparent 65%);
+  pointer-events: none;
+}
+.hero-tag {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--leaf-mid);
+  border: 1px solid rgba(143,188,143,0.3);
+  background: rgba(143,188,143,0.08);
+  padding: 4px 14px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-bottom: 1.5rem;
+}
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.08;
+  margin-bottom: 1rem;
+}
+.hero h1 em { font-style: normal; color: var(--leaf-mid); }
+.hero-sub {
+  font-size: 1rem;
+  color: rgba(245,242,235,0.6);
+  max-width: 560px;
+  font-weight: 300;
+  margin-bottom: 2.5rem;
+}
+.hero-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.hero-chip {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.05);
+}
+.hero-chip.active { border-color: var(--leaf-mid); color: var(--leaf-mid); background: rgba(58,125,68,0.12); }
+
+/* WRAPPER */
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 2.5rem; }
+section { padding: 4rem 0; }
+section + section { border-top: 1px solid var(--paper3); }
+
+.sec-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--leaf2);
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--paper3);
+}
+.sec-title {
+  font-family: var(--display);
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--ink);
+}
+.sec-title em { font-style: normal; color: var(--leaf); }
+.sec-sub {
+  font-size: 0.9rem;
+  color: var(--ink3);
+  max-width: 640px;
+  margin-bottom: 2.5rem;
+  font-weight: 300;
+}
+
+/* FLOW DIAGRAM — USER JOURNEY */
+.flow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+.flow-steps::before {
+  content: '';
+  position: absolute;
+  left: 27px;
+  top: 28px;
+  bottom: 28px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--leaf), var(--paper3));
+}
+.flow-step {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 1.5rem;
+  align-items: flex-start;
+  padding: 1.5rem 0;
+  position: relative;
+}
+.step-num {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  z-index: 1;
+  border: 3px solid var(--paper);
+  box-shadow: 0 0 0 2px var(--leaf);
+}
+.step-num.active { background: var(--leaf); box-shadow: 0 0 0 2px var(--leaf2); }
+.step-body { padding-top: 4px; }
+.step-page {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--leaf);
+  margin-bottom: 4px;
+}
+.step-title {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.step-desc {
+  font-size: 0.85rem;
+  color: var(--ink3);
+  margin-bottom: 10px;
+  font-weight: 300;
+  line-height: 1.65;
+}
+.step-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.step-card {
+  background: var(--paper2);
+  border: 1px solid var(--paper3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  color: var(--ink2);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 200px;
+  flex: 1;
+}
+.step-card-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+.step-card-text strong { display: block; font-family: var(--display); font-size: 0.78rem; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+.step-arrow {
+  text-align: center;
+  padding: 2px 0 2px 27px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--leaf);
+}
+
+/* TECH FLOW — BACKEND */
+.pipeline-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  background: var(--ink);
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+}
+@media(max-width:900px){ .pipeline-row { grid-template-columns: 1fr; } }
+.pipeline-node {
+  padding: 1.5rem 1.2rem;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  position: relative;
+  transition: background 0.2s;
+}
+.pipeline-node:last-child { border-right: none; }
+.pipeline-node:hover { background: rgba(255,255,255,0.04); }
+.pipeline-arrow-overlay {
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  background: var(--leaf);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  color: white;
+}
+@media(max-width:900px){ .pipeline-arrow-overlay { display: none; } }
+.pn-step {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--leaf-mid);
+  margin-bottom: 6px;
+}
+.pn-title {
+  font-family: var(--display);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f0f0e8;
+  margin-bottom: 8px;
+}
+.pn-tech {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 10px;
+}
+.pn-items { display: flex; flex-direction: column; gap: 4px; }
+.pn-item {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.55);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.4;
+}
+.pn-item::before { content: '→'; color: var(--leaf-mid); flex-shrink: 0; }
+
+/* PAGES GRID */
+.pages-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--paper3);
+  border: 1px solid var(--paper3);
+  border-radius: 14px;
+  overflow: hidden;
+}
+@media(max-width:850px){ .pages-grid { grid-template-columns: 1fr; } }
+.page-card {
+  background: var(--paper);
+  padding: 1.75rem 1.5rem;
+  transition: background 0.2s;
+}
+.page-card:hover { background: var(--paper2); }
+.page-num {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--leaf);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+.page-name {
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.page-route {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--sky);
+  background: var(--sky-pale);
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+.page-features { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.page-feature {
+  font-size: 0.78rem;
+  color: var(--ink3);
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  line-height: 1.45;
+}
+.pf-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--leaf-mid);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+/* DASHBOARD WIREFRAME */
+.wireframe {
+  background: var(--ink2);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--ink3);
+}
+.wf-bar {
+  background: var(--ink);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--ink3);
+}
+.wf-dots { display: flex; gap: 6px; }
+.wf-dot { width: 10px; height: 10px; border-radius: 50%; }
+.wf-logo { font-family: var(--display); font-size: 0.75rem; color: var(--leaf-mid); font-weight: 700; }
+.wf-nav { display: flex; gap: 16px; }
+.wf-nav-item { font-family: var(--mono); font-size: 0.6rem; color: rgba(255,255,255,0.3); text-transform: uppercase; }
+.wf-nav-item.active { color: var(--leaf-mid); }
+.wf-body { display: grid; grid-template-columns: 240px 1fr; min-height: 480px; }
+@media(max-width:700px){ .wf-body { grid-template-columns: 1fr; } }
+.wf-sidebar {
+  background: rgba(0,0,0,0.2);
+  border-right: 1px solid var(--ink3);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-sidebar-title { font-family: var(--mono); font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.15em; color: rgba(255,255,255,0.2); padding: 8px 4px 4px; }
+.wf-farm-item {
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.wf-farm-item.active { background: rgba(58,125,68,0.25); color: var(--leaf-mid); border: 1px solid rgba(58,125,68,0.3); }
+.wf-farm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--leaf-mid); flex-shrink: 0; }
+.wf-farm-dot.amber { background: var(--amber); }
+.wf-farm-dot.red { background: var(--red); }
+.wf-main { padding: 1.25rem; display: flex; flex-direction: column; gap: 12px; }
+.wf-section-title { font-family: var(--mono); font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.15em; color: rgba(255,255,255,0.25); margin-bottom: 4px; }
+
+/* KPI Row */
+.wf-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media(max-width:600px){ .wf-kpi-row { grid-template-columns: 1fr 1fr; } }
+.wf-kpi {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.wf-kpi-label { font-family: var(--mono); font-size: 0.55rem; text-transform: uppercase; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; margin-bottom: 4px; }
+.wf-kpi-val { font-family: var(--display); font-size: 1.3rem; font-weight: 700; }
+.wf-kpi-val.green { color: var(--leaf-mid); }
+.wf-kpi-val.amber { color: var(--amber); }
+.wf-kpi-val.red { color: #e57373; }
+.wf-kpi-val.sky { color: #80c8f0; }
+.wf-kpi-sub { font-size: 0.62rem; color: rgba(255,255,255,0.2); margin-top: 2px; }
+
+/* Map + Chart Row */
+.wf-mid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media(max-width:600px){ .wf-mid-row { grid-template-columns: 1fr; } }
+.wf-map-box {
+  background: #1a3520;
+  border: 1px solid rgba(58,125,68,0.3);
+  border-radius: 8px;
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Fake satellite map */
+.wf-map-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 45% at 55% 50%, rgba(80,160,80,0.25) 0%, transparent 70%),
+    radial-gradient(ellipse 30% 30% at 30% 35%, rgba(100,180,80,0.2) 0%, transparent 60%),
+    linear-gradient(135deg, #0d1f0f 0%, #1a3520 40%, #122a14 100%);
+}
+.wf-map-polygon {
+  position: absolute;
+  width: 110px;
+  height: 80px;
+  border: 2px solid var(--leaf-mid);
+  background: rgba(58,125,68,0.2);
+  border-radius: 6px;
+  box-shadow: 0 0 20px rgba(58,125,68,0.35);
+}
+.wf-map-label {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--leaf-mid);
+  background: rgba(0,0,0,0.6);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.wf-chart-box {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  height: 180px;
+  padding: 10px 12px;
+  position: relative;
+  overflow: hidden;
+}
+.wf-chart-title { font-family: var(--mono); font-size: 0.55rem; text-transform: uppercase; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; margin-bottom: 8px; }
+.wf-chart-lines {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+}
+.wf-chart-lines svg { width: 100%; height: 100%; }
+
+/* Recommendation Bar */
+.wf-reco {
+  background: rgba(58,125,68,0.12);
+  border: 1px solid rgba(58,125,68,0.35);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wf-reco-label { font-family: var(--mono); font-size: 0.6rem; text-transform: uppercase; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; margin-bottom: 2px; }
+.wf-reco-action { font-family: var(--display); font-size: 1rem; font-weight: 700; color: var(--leaf-mid); }
+.wf-reco-detail { font-size: 0.72rem; color: rgba(255,255,255,0.4); }
+.wf-reco-btn {
+  background: var(--leaf);
+  color: white;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* TECH TABLE */
+.tech-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+.tech-matrix th {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink3);
+}
+.tech-matrix td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--paper3);
+  vertical-align: top;
+}
+.tech-matrix tr:last-child td { border-bottom: none; }
+.tech-matrix td:first-child { font-family: var(--mono); font-size: 0.72rem; color: var(--ink3); width: 18%; }
+.tech-matrix td:nth-child(2) { font-family: var(--mono); font-size: 0.8rem; font-weight: 500; color: var(--leaf2); width: 22%; }
+.tech-matrix td:nth-child(3) { color: var(--ink3); font-weight: 300; width: 35%; font-size: 0.8rem; }
+.tech-matrix td:nth-child(4) { font-size: 0.72rem; color: var(--ink3); font-weight: 300; }
+.tech-matrix tr:hover td { background: var(--paper2); }
+
+/* FOLDER STRUCTURE */
+.folder {
+  background: var(--ink);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 2;
+  color: rgba(255,255,255,0.5);
+  overflow-x: auto;
+}
+.f-dir { color: #80c8f0; }
+.f-file { color: rgba(255,255,255,0.6); }
+.f-comment { color: rgba(255,255,255,0.2); font-style: italic; }
+.f-green { color: var(--leaf-mid); }
+.f-amber { color: #fbbf24; }
+
+/* CHIPS */
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  padding: 2px 9px;
+  border-radius: 4px;
+  margin: 2px;
+  font-weight: 500;
+}
+.chip-green { background: var(--leaf-pale); color: var(--leaf2); border: 1px solid var(--leaf-mid); }
+.chip-sky { background: var(--sky-pale); color: var(--sky); border: 1px solid #a0c8e8; }
+.chip-amber { background: var(--amber-pale); color: var(--amber); border: 1px solid #f0c060; }
+.chip-red { background: var(--red-pale); color: var(--red); border: 1px solid #e8a0a0; }
+
+/* SCROLL REVEAL */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal.visible { opacity: 1; transform: none; }
+
+/* SCROLL BAR */
+.scroll-bar {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: var(--leaf); z-index: 9999; transition: width 0.1s;
+}
+
+/* FOOTER */
+footer {
+  background: var(--ink);
+  color: rgba(255,255,255,0.35);
+  padding: 3rem 2.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+}
+footer strong { color: var(--leaf-mid); font-size: 1rem; font-family: var(--display); }
+
+/* API ROUTE */
+.api-route {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--paper3);
+  font-size: 0.8rem;
+  transition: background 0.15s;
+}
+.api-route:last-child { border-bottom: none; }
+.api-route:hover { background: var(--paper2); }
+.method-badge {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  min-width: 48px;
+  text-align: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.method-get { background: var(--leaf-pale); color: var(--leaf2); }
+.method-post { background: var(--sky-pale); color: var(--sky); }
+.api-path { font-family: var(--mono); font-size: 0.78rem; color: var(--ink); flex: 1; font-weight: 500; }
+.api-desc { font-size: 0.75rem; color: var(--ink3); font-weight: 300; }
+</style>
+</head>
+<body>
+<div class="scroll-bar" id="sb"></div>
+
+<nav>
+  <div class="nav-brand">🛰 OleaSat <span>/ Web App Spec</span></div>
+  <div class="nav-pills">
+    <a class="nav-pill" href="#flow">User Flow</a>
+    <a class="nav-pill" href="#pages">Pages</a>
+    <a class="nav-pill" href="#dashboard">Dashboard</a>
+    <a class="nav-pill" href="#backend">Backend</a>
+    <a class="nav-pill" href="#stack">Stack</a>
+    <a class="nav-pill" href="#structure">Structure</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag">🌿 Web App — Flow + Technical Spec</div>
+  <h1>From <em>Farmer's Field</em><br>to Smart Dashboard</h1>
+  <p class="hero-sub">The farmer uploads or draws their olive zone. The system fetches satellite data, computes NDVI + water stress indices, and shows a live farm dashboard with irrigation status.</p>
+  <div class="hero-chips">
+    <span class="hero-chip active">Web Only (No Mobile)</span>
+    <span class="hero-chip active">FastAPI Backend</span>
+    <span class="hero-chip active">Next.js Frontend</span>
+    <span class="hero-chip active">Draw Polygon + Upload File</span>
+    <span class="hero-chip active">NDVI / NDWI / Stress Dashboard</span>
+    <span class="hero-chip">Sentinel-2 via GEE</span>
+    <span class="hero-chip">PostGIS Database</span>
+  </div>
+</div>
+
+<!-- ─── SECTION 1: USER FLOW ─── -->
+<section id="flow">
+  <div class="wrap">
+    <div class="sec-label">01 — Complete User Journey</div>
+    <div class="sec-title">Every <em>Step</em> the Farmer Takes</div>
+    <p class="sec-sub">From landing on the site to reading today's irrigation recommendation — here is every screen and action in order.</p>
+
+    <div class="flow-steps reveal">
+
+      <!-- Step 1 -->
+      <div class="flow-step">
+        <div class="step-num active">01</div>
+        <div class="step-body">
+          <div class="step-page">Page: / (Landing)</div>
+          <div class="step-title">Farmer arrives — creates account</div>
+          <div class="step-desc">A clean landing page explains the value: "Know exactly when and how much to irrigate, using satellite data — no sensors needed." The farmer clicks Sign Up, enters name + phone + email. Backend creates the user, returns a JWT token, farmer is redirected to the dashboard.</div>
+          <div class="step-cards">
+            <div class="step-card"><div class="step-card-icon">✉️</div><div class="step-card-text"><strong>Register Form</strong>Name, phone, email, password. Language selector (FR / AR / EN).</div></div>
+            <div class="step-card"><div class="step-card-icon">🔑</div><div class="step-card-text"><strong>JWT Auth</strong>Token stored in httpOnly cookie. No localStorage.</div></div>
+            <div class="step-card"><div class="step-card-icon">➡️</div><div class="step-card-text"><strong>Redirect</strong>On success → /dashboard (empty state, prompt to add first parcel).</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-arrow">↓ auth success → /dashboard</div>
+
+      <!-- Step 2 -->
+      <div class="flow-step">
+        <div class="step-num active">02</div>
+        <div class="step-body">
+          <div class="step-page">Page: /dashboard (Empty State)</div>
+          <div class="step-title">First visit — no parcels yet</div>
+          <div class="step-desc">Dashboard is empty. A prominent call-to-action button says "Add Your First Field". The farmer clicks it and a modal opens with two tabs: Draw on Map, or Upload File.</div>
+          <div class="step-cards">
+            <div class="step-card"><div class="step-card-icon">🗺️</div><div class="step-card-text"><strong>Empty State</strong>Illustration + "Add Your First Field" button. Clean, not cluttered.</div></div>
+            <div class="step-card"><div class="step-card-icon">➕</div><div class="step-card-text"><strong>Modal Opens</strong>Two-tab interface: Draw Mode or Upload Mode.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-arrow">↓ farmer clicks "Add Field"</div>
+
+      <!-- Step 3A -->
+      <div class="flow-step">
+        <div class="step-num active">03</div>
+        <div class="step-body">
+          <div class="step-page">Modal Tab A: Draw on Map</div>
+          <div class="step-title">Option A — Draw the zone on satellite map</div>
+          <div class="step-desc">A Leaflet map loads centered on Morocco. Satellite tiles (Mapbox or ESRI). The farmer zooms to their land, clicks the Draw button, and clicks around the edges of the field. Each click adds a vertex. Double-click closes the polygon. The boundary glows green to confirm.</div>
+          <div class="step-cards">
+            <div class="step-card"><div class="step-card-icon">🛰️</div><div class="step-card-text"><strong>Satellite Tiles</strong>ESRI World Imagery or Mapbox Satellite as base layer so the farmer can see their actual land.</div></div>
+            <div class="step-card"><div class="step-card-icon">✏️</div><div class="step-card-text"><strong>Leaflet.draw</strong>Polygon drawing tool. Shows area (ha) in real time as polygon grows.</div></div>
+            <div class="step-card"><div class="step-card-icon">📐</div><div class="step-card-text"><strong>Live Stats</strong>Area in hectares, estimated tree count at default density (100 trees/ha).</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3B -->
+      <div class="flow-step">
+        <div class="step-num active">03</div>
+        <div class="step-body">
+          <div class="step-page">Modal Tab B: Upload File</div>
+          <div class="step-title">Option B — Upload GeoJSON, KML, or Shapefile</div>
+          <div class="step-desc">The farmer (or their agronomist) may already have a digital boundary file. They drag and drop it into a dropzone. The system parses the file, extracts the polygon geometry, and renders it on the Leaflet map immediately. If the file has multiple features, the farmer picks which one.</div>
+          <div class="step-cards">
+            <div class="step-card"><div class="step-card-icon">📂</div><div class="step-card-text"><strong>Supported Formats</strong>GeoJSON (.geojson), KML (.kml), Shapefile (.zip of .shp + .dbf + .prj).</div></div>
+            <div class="step-card"><div class="step-card-icon">🗺️</div><div class="step-card-text"><strong>Instant Preview</strong>Polygon is rendered on map immediately after upload. Green fill with border.</div></div>
+            <div class="step-card"><div class="step-card-icon">⚙️</div><div class="step-card-text"><strong>Backend Parse</strong>FastAPI uses Shapely + Fiona to validate and standardize geometry to WGS84.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-arrow">↓ polygon confirmed → farmer fills in field details</div>
+
+      <!-- Step 4 -->
+      <div class="flow-step">
+        <div class="step-num active">04</div>
+        <div class="step-body">
+          <div class="step-page">Modal Step 2: Field Metadata</div>
+          <div class="step-title">Name the field + add details</div>
+          <div class="step-desc">After drawing or uploading, a small form appears in the same modal: Field name, crop type (defaults to Olive), soil type (Clay / Sandy / Loam), tree density, irrigation method. Then "Save Field". Backend stores the polygon in PostGIS and triggers an async job.</div>
+          <div class="step-cards">
+            <div class="step-card"><div class="step-card-icon">🌿</div><div class="step-card-text"><strong>Metadata Form</strong>Name, crop type, soil type, tree density/ha, irrigation method (drip / flood / none).</div></div>
+            <div class="step-card"><div class="step-card-icon">💾</div><div class="step-card-text"><strong>POST /parcels</strong>GeoJSON + metadata saved. Backend returns parcel_id.</div></div>
+            <div class="step-card"><div class="step-card-icon">⚡</div><div class="step-card-text"><strong>Job Triggered</strong>Celery worker starts extracting Sentinel-2 data for this polygon (async).</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-arrow">↓ save → polygon on dashboard, data loading...</div>
+
+      <!-- Step 5 -->
+      <div class="flow-step">
+        <div class="step-num active">05</div>
+        <div class="step-body">
+          <div class="step-page">Page: /dashboard/:parcelId</div>
+          <div class="step-title">The Farm Dashboard — Live Status</div>
+          <div class="step-desc">This is the core screen. The farmer sees their field boundary on the map, and 4 KPI cards at the top: NDVI today, Water Stress Index, Days Since Rain, and Today's Action. Below: an NDVI time series chart (last 6 months), a weather chart, and the irrigation recommendation card. Data refreshes every time a new Sentinel-2 image is available (every 5 days).</div>
+          <div class="step-cards">
+            <div class="step-card"><div class="step-card-icon">🟢</div><div class="step-card-text"><strong>KPI Cards</strong>NDVI, NDWI stress index, days without rain, current recommendation action.</div></div>
+            <div class="step-card"><div class="step-card-icon">📈</div><div class="step-card-text"><strong>Index Charts</strong>NDVI + NDWI time series (interactive, hover to see exact date values).</div></div>
+            <div class="step-card"><div class="step-card-icon">🌧️</div><div class="step-card-text"><strong>Weather Chart</strong>Daily rainfall + ET₀ bars for the last 30 days.</div></div>
+            <div class="step-card"><div class="step-card-icon">💧</div><div class="step-card-text"><strong>Irrigation Card</strong>IRRIGATE / SKIP / URGENT + liters per tree + confidence score.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-arrow">↓ farmer has multiple fields → uses sidebar to switch between them</div>
+
+      <!-- Step 6 -->
+      <div class="flow-step">
+        <div class="step-num">06</div>
+        <div class="step-body">
+          <div class="step-page">Ongoing: Multi-Field Management</div>
+          <div class="step-title">Manage all fields from one sidebar</div>
+          <div class="step-desc">The left sidebar lists all the farmer's parcels with a colored status dot (green = OK, amber = moderate stress, red = urgent). The farmer can click any parcel to switch the dashboard view. They can also add new fields anytime via the "+" button, rename or delete existing ones.</div>
+          <div class="step-cards">
+            <div class="step-card"><div class="step-card-icon">📋</div><div class="step-card-text"><strong>Parcel Sidebar</strong>List of all fields, status dot, area, last update timestamp.</div></div>
+            <div class="step-card"><div class="step-card-icon">🔄</div><div class="step-card-text"><strong>Auto-Refresh</strong>Data updates automatically every 5 days when new Sentinel-2 pass is processed.</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─── SECTION 2: PAGES ─── -->
+<section id="pages">
+  <div class="wrap">
+    <div class="sec-label">02 — All App Pages</div>
+    <div class="sec-title">Every <em>Page & Route</em></div>
+    <p class="sec-sub">The complete web app has 5 pages. Simple, focused, no bloat.</p>
+
+    <div class="pages-grid reveal">
+      <div class="page-card">
+        <div class="page-num">Page 01</div>
+        <div class="page-name">Landing / Home</div>
+        <div class="page-route">/</div>
+        <div class="page-features">
+          <div class="page-feature"><div class="pf-dot"></div>Hero: problem + solution in 2 lines</div>
+          <div class="page-feature"><div class="pf-dot"></div>How it works: 3-step visual</div>
+          <div class="page-feature"><div class="pf-dot"></div>Sign Up / Login buttons</div>
+          <div class="page-feature"><div class="pf-dot"></div>Language switch (FR / AR / EN)</div>
+        </div>
+      </div>
+      <div class="page-card">
+        <div class="page-num">Page 02</div>
+        <div class="page-name">Auth</div>
+        <div class="page-route">/login &amp; /register</div>
+        <div class="page-features">
+          <div class="page-feature"><div class="pf-dot"></div>Email + password form</div>
+          <div class="page-feature"><div class="pf-dot"></div>Phone number (for SMS alerts)</div>
+          <div class="page-feature"><div class="pf-dot"></div>JWT stored as httpOnly cookie</div>
+          <div class="page-feature"><div class="pf-dot"></div>Redirect to /dashboard on success</div>
+        </div>
+      </div>
+      <div class="page-card">
+        <div class="page-num">Page 03 ⭐ Core</div>
+        <div class="page-name">Dashboard</div>
+        <div class="page-route">/dashboard</div>
+        <div class="page-features">
+          <div class="page-feature"><div class="pf-dot"></div>Left sidebar: list of all parcels</div>
+          <div class="page-feature"><div class="pf-dot"></div>Map: field boundary on satellite tiles</div>
+          <div class="page-feature"><div class="pf-dot"></div>KPI cards: NDVI, stress, rain, action</div>
+          <div class="page-feature"><div class="pf-dot"></div>NDVI + NDWI time series charts</div>
+          <div class="page-feature"><div class="pf-dot"></div>Weather bar chart (rain + ET₀)</div>
+          <div class="page-feature"><div class="pf-dot"></div>Irrigation recommendation card</div>
+          <div class="page-feature"><div class="pf-dot"></div>Add Field modal (draw + upload)</div>
+        </div>
+      </div>
+      <div class="page-card">
+        <div class="page-num">Page 04</div>
+        <div class="page-name">Field Detail</div>
+        <div class="page-route">/dashboard/:id</div>
+        <div class="page-features">
+          <div class="page-feature"><div class="pf-dot"></div>Full screen map of this field</div>
+          <div class="page-feature"><div class="pf-dot"></div>Full index history (all years)</div>
+          <div class="page-feature"><div class="pf-dot"></div>Recommendation history log</div>
+          <div class="page-feature"><div class="pf-dot"></div>Export data as CSV</div>
+          <div class="page-feature"><div class="pf-dot"></div>Edit / delete field</div>
+        </div>
+      </div>
+      <div class="page-card">
+        <div class="page-num">Page 05</div>
+        <div class="page-name">Settings</div>
+        <div class="page-route">/settings</div>
+        <div class="page-features">
+          <div class="page-feature"><div class="pf-dot"></div>Profile: name, phone, language</div>
+          <div class="page-feature"><div class="pf-dot"></div>Notification preferences (SMS on/off)</div>
+          <div class="page-feature"><div class="pf-dot"></div>Alert thresholds (stress level trigger)</div>
+          <div class="page-feature"><div class="pf-dot"></div>Change password</div>
+        </div>
+      </div>
+      <div class="page-card" style="background: var(--paper2);">
+        <div class="page-num" style="color: var(--amber);">Not a Page</div>
+        <div class="page-name">Add Field Modal</div>
+        <div class="page-route">Component (overlay)</div>
+        <div class="page-features">
+          <div class="page-feature"><div class="pf-dot" style="background: var(--amber);"></div>Tab 1: Draw polygon on Leaflet map</div>
+          <div class="page-feature"><div class="pf-dot" style="background: var(--amber);"></div>Tab 2: Upload GeoJSON / KML / Shapefile</div>
+          <div class="page-feature"><div class="pf-dot" style="background: var(--amber);"></div>Step 2: Name + crop + soil + density</div>
+          <div class="page-feature"><div class="pf-dot" style="background: var(--amber);"></div>Save → triggers data extraction job</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SECTION 3: DASHBOARD WIREFRAME ─── -->
+<section id="dashboard">
+  <div class="wrap">
+    <div class="sec-label">03 — Dashboard Design</div>
+    <div class="sec-title">What the Farmer <em>Sees</em></div>
+    <p class="sec-sub">Interactive wireframe of the core dashboard screen — the main page the farmer uses every day.</p>
+
+    <div class="wireframe reveal">
+      <!-- Browser bar -->
+      <div class="wf-bar">
+        <div class="wf-dots">
+          <div class="wf-dot" style="background:#e57373"></div>
+          <div class="wf-dot" style="background:#fbbf24"></div>
+          <div class="wf-dot" style="background:#4ade80"></div>
+        </div>
+        <div class="wf-logo">🛰 OleaSat</div>
+        <div class="wf-nav">
+          <span class="wf-nav-item active">Dashboard</span>
+          <span class="wf-nav-item">Settings</span>
+          <span class="wf-nav-item">Logout</span>
+        </div>
+      </div>
+      <!-- Main body -->
+      <div class="wf-body">
+        <!-- Sidebar -->
+        <div class="wf-sidebar">
+          <div class="wf-sidebar-title">My Fields</div>
+          <div class="wf-farm-item active">
+            <div class="wf-farm-dot"></div>
+            Parcelle Nord — 3.2 ha
+          </div>
+          <div class="wf-farm-item">
+            <div class="wf-farm-dot amber"></div>
+            Parcelle Sud — 1.8 ha
+          </div>
+          <div class="wf-farm-item">
+            <div class="wf-farm-dot red"></div>
+            Terrain Est — 5.0 ha
+          </div>
+          <div style="margin-top: auto; padding: 12px 4px 0;">
+            <div style="background: rgba(58,125,68,0.2); border: 1px dashed rgba(58,125,68,0.4); border-radius: 8px; padding: 10px; text-align: center; font-size: 0.68rem; color: rgba(255,255,255,0.3); cursor: pointer;">
+              + Add New Field
+            </div>
+          </div>
+        </div>
+        <!-- Main content -->
+        <div class="wf-main">
+          <div>
+            <div class="wf-section-title">Parcelle Nord — Current Status</div>
+            <div class="wf-kpi-row">
+              <div class="wf-kpi">
+                <div class="wf-kpi-label">NDVI Today</div>
+                <div class="wf-kpi-val green">0.64</div>
+                <div class="wf-kpi-sub">↑ +0.04 vs last week</div>
+              </div>
+              <div class="wf-kpi">
+                <div class="wf-kpi-label">Water Stress</div>
+                <div class="wf-kpi-val amber">0.42</div>
+                <div class="wf-kpi-sub">Moderate stress</div>
+              </div>
+              <div class="wf-kpi">
+                <div class="wf-kpi-label">Days No Rain</div>
+                <div class="wf-kpi-val sky">12</div>
+                <div class="wf-kpi-sub">Last rain: 8mm</div>
+              </div>
+              <div class="wf-kpi">
+                <div class="wf-kpi-label">ET₀ Today</div>
+                <div class="wf-kpi-val sky">4.2</div>
+                <div class="wf-kpi-sub">mm / day</div>
+              </div>
+            </div>
+          </div>
+          <div class="wf-mid-row">
+            <!-- Map -->
+            <div>
+              <div class="wf-section-title">Field Map</div>
+              <div class="wf-map-box">
+                <div class="wf-map-polygon"></div>
+                <div class="wf-map-label">📍 Parcelle Nord · 3.2 ha</div>
+              </div>
+            </div>
+            <!-- Chart -->
+            <div>
+              <div class="wf-section-title">NDVI over time (6 months)</div>
+              <div class="wf-chart-box">
+                <div class="wf-chart-title">NDVI — NDWI</div>
+                <div class="wf-chart-lines">
+                  <svg viewBox="0 0 300 100" preserveAspectRatio="none">
+                    <!-- NDVI line (green) -->
+                    <polyline points="0,70 30,65 60,55 90,50 120,48 150,52 180,45 210,42 240,38 270,40 300,36"
+                      fill="none" stroke="#4ade80" stroke-width="1.5" opacity="0.9"/>
+                    <!-- NDWI line (sky) -->
+                    <polyline points="0,85 30,80 60,78 90,72 120,70 150,74 180,68 210,65 240,60 270,63 300,58"
+                      fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+                    <!-- Area fill -->
+                    <polygon points="0,70 30,65 60,55 90,50 120,48 150,52 180,45 210,42 240,38 270,40 300,36 300,100 0,100"
+                      fill="rgba(74,222,128,0.07)"/>
+                    <!-- Grid lines -->
+                    <line x1="0" y1="25" x2="300" y2="25" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                    <line x1="0" y1="50" x2="300" y2="50" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                    <line x1="0" y1="75" x2="300" y2="75" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                    <!-- Today dot -->
+                    <circle cx="300" cy="36" r="3" fill="#4ade80"/>
+                  </svg>
+                </div>
+                <div style="display:flex; gap:12px; margin-top:4px;">
+                  <span style="font-family:var(--mono); font-size:0.55rem; color:#4ade80;">━ NDVI</span>
+                  <span style="font-family:var(--mono); font-size:0.55rem; color:#60a5fa;">- - NDWI</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Recommendation -->
+          <div class="wf-reco">
+            <div>
+              <div class="wf-reco-label">💧 Irrigation Recommendation — Today</div>
+              <div class="wf-reco-action">IRRIGATE — 18L per tree</div>
+              <div class="wf-reco-detail">Confidence 82% · Stress index 0.42 · No rain forecast for 5 days</div>
+            </div>
+            <button class="wf-reco-btn">Confirm Done ✓</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size: 0.75rem; color: var(--ink3); margin-top: 1rem; text-align: center; font-family: var(--mono);">↑ Interactive wireframe — actual build with Next.js + Recharts + Leaflet</p>
+  </div>
+</section>
+
+<!-- ─── SECTION 4: BACKEND PIPELINE ─── -->
+<section id="backend">
+  <div class="wrap">
+    <div class="sec-label">04 — Backend Technical Flow</div>
+    <div class="sec-title">What Happens <em>Behind the Scene</em></div>
+    <p class="sec-sub">From the moment the farmer saves their field, here is every technical step the backend executes — automatically.</p>
+
+    <div class="pipeline-row reveal">
+      <div class="pipeline-node">
+        <div class="pipeline-arrow-overlay">→</div>
+        <div class="pn-step">Step 1</div>
+        <div class="pn-title">Receive Polygon</div>
+        <div class="pn-tech">FastAPI · PostGIS</div>
+        <div class="pn-items">
+          <div class="pn-item">POST /parcels receives GeoJSON</div>
+          <div class="pn-item">Validate geometry with Shapely</div>
+          <div class="pn-item">Reproject to EPSG:4326</div>
+          <div class="pn-item">Store in parcels table (PostGIS)</div>
+          <div class="pn-item">Compute area_ha via ST_Area</div>
+        </div>
+      </div>
+      <div class="pipeline-node">
+        <div class="pipeline-arrow-overlay">→</div>
+        <div class="pn-step">Step 2</div>
+        <div class="pn-title">Trigger Async Job</div>
+        <div class="pn-tech">Celery · Redis</div>
+        <div class="pn-items">
+          <div class="pn-item">API pushes task to Redis queue</div>
+          <div class="pn-item">Worker picks up extract_parcel task</div>
+          <div class="pn-item">Date range: today − 180 days</div>
+          <div class="pn-item">Parcel marked status = "processing"</div>
+        </div>
+      </div>
+      <div class="pipeline-node">
+        <div class="pipeline-arrow-overlay">→</div>
+        <div class="pn-step">Step 3</div>
+        <div class="pn-title">Satellite Extraction</div>
+        <div class="pn-tech">GEE · Sentinel-2</div>
+        <div class="pn-items">
+          <div class="pn-item">Filter S2 collection by polygon + date</div>
+          <div class="pn-item">Cloud mask (SCL band ≤ 20%)</div>
+          <div class="pn-item">Compute NDVI, NDWI, NDSI per image</div>
+          <div class="pn-item">Reduce to mean per polygon</div>
+          <div class="pn-item">Return time series as DataFrame</div>
+        </div>
+      </div>
+      <div class="pipeline-node">
+        <div class="pipeline-arrow-overlay">→</div>
+        <div class="pn-step">Step 4</div>
+        <div class="pn-title">Weather + Features</div>
+        <div class="pn-tech">ERA5-Land · Pandas</div>
+        <div class="pn-items">
+          <div class="pn-item">Fetch ERA5: rain, temp, ET₀</div>
+          <div class="pn-item">Align dates to satellite time series</div>
+          <div class="pn-item">Compute lag features (5/10/30 days)</div>
+          <div class="pn-item">Rolling stats: rain_14d, et0_7d</div>
+          <div class="pn-item">Store in satellite + meteo tables</div>
+        </div>
+      </div>
+      <div class="pipeline-node">
+        <div class="pn-step">Step 5</div>
+        <div class="pn-title">Generate Recommendation</div>
+        <div class="pn-tech">XGBoost → TFT</div>
+        <div class="pn-items">
+          <div class="pn-item">Send features to ML inference service</div>
+          <div class="pn-item">Get stress_score + water_need_mm</div>
+          <div class="pn-item">Map to SKIP / IRRIGATE / URGENT</div>
+          <div class="pn-item">Convert mm → liters/tree using density</div>
+          <div class="pn-item">Store in recommendations table</div>
+          <div class="pn-item">Mark parcel status = "ready"</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Routes -->
+    <div style="margin-top: 2.5rem;" class="reveal">
+      <div class="sec-title" style="font-size: 1.3rem; margin-bottom: 1rem;">All <em>API Routes</em> Used by the Web App</div>
+      <div style="background: var(--paper2); border: 1px solid var(--paper3); border-radius: 12px; overflow: hidden;">
+        <div style="padding: 10px 14px; background: var(--ink); color: rgba(255,255,255,0.3); font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em;">FastAPI — Base URL: /api/v1</div>
+        <div class="api-route"><span class="method-badge method-post">POST</span><span class="api-path">/auth/register</span><span class="api-desc">Create new farmer account, returns JWT</span></div>
+        <div class="api-route"><span class="method-badge method-post">POST</span><span class="api-path">/auth/login</span><span class="api-desc">Returns JWT token in httpOnly cookie</span></div>
+        <div class="api-route"><span class="method-badge method-get">GET</span><span class="api-path">/auth/me</span><span class="api-desc">Current user profile</span></div>
+        <div class="api-route"><span class="method-badge method-get">GET</span><span class="api-path">/parcels</span><span class="api-desc">List all parcels for current user</span></div>
+        <div class="api-route"><span class="method-badge method-post">POST</span><span class="api-path">/parcels</span><span class="api-desc">Create parcel (body: GeoJSON + metadata), triggers extraction job</span></div>
+        <div class="api-route"><span class="method-badge method-get">GET</span><span class="api-path">/parcels/{id}</span><span class="api-desc">Single parcel detail + current status (processing / ready / error)</span></div>
+        <div class="api-route"><span class="method-badge method-get">GET</span><span class="api-path">/parcels/{id}/indices</span><span class="api-desc">NDVI + NDWI + NDSI time series (query: start_date, end_date)</span></div>
+        <div class="api-route"><span class="method-badge method-get">GET</span><span class="api-path">/parcels/{id}/meteo</span><span class="api-desc">Daily rainfall + temperature + ET₀ history</span></div>
+        <div class="api-route"><span class="method-badge method-get">GET</span><span class="api-path">/parcels/{id}/recommend</span><span class="api-desc">Today's recommendation: action, liters/tree, confidence, key factors</span></div>
+        <div class="api-route"><span class="method-badge method-post">POST</span><span class="api-path">/parcels/{id}/refresh</span><span class="api-desc">Manually trigger new data extraction (if farmer wants latest update)</span></div>
+        <div class="api-route"><span class="method-badge method-post">POST</span><span class="api-path">/upload/geojson</span><span class="api-desc">Parse uploaded GeoJSON file → returns polygon coordinates for preview</span></div>
+        <div class="api-route"><span class="method-badge method-post">POST</span><span class="api-path">/upload/shapefile</span><span class="api-desc">Parse .zip shapefile → returns GeoJSON polygon for preview</span></div>
+        <div class="api-route"><span class="method-badge method-post">POST</span><span class="api-path">/upload/kml</span><span class="api-desc">Parse KML → returns GeoJSON polygon for preview</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SECTION 5: TECH STACK ─── -->
+<section id="stack">
+  <div class="wrap">
+    <div class="sec-label">05 — Full Technology Stack</div>
+    <div class="sec-title">Every Tool, <em>Every Layer</em></div>
+    <p class="sec-sub">Chosen for simplicity, speed to build, and production readiness. No overengineering.</p>
+
+    <div class="reveal" style="background: var(--paper2); border: 1px solid var(--paper3); border-radius: 14px; overflow: hidden;">
+      <table class="tech-matrix">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Technology</th>
+            <th>Why This Choice</th>
+            <th>Used For</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Frontend</td>
+            <td>Next.js 14 <span class="chip chip-green">React</span></td>
+            <td>File-based routing, SSR for SEO, huge ecosystem</td>
+            <td>All 5 pages, charts, map</td>
+          </tr>
+          <tr>
+            <td>Map</td>
+            <td>Leaflet.js + leaflet-draw <span class="chip chip-sky">+ react-leaflet</span></td>
+            <td>Free, polygon drawing built-in, GeoJSON native, satellite tiles</td>
+            <td>Field boundary display + drawing tool</td>
+          </tr>
+          <tr>
+            <td>Charts</td>
+            <td>Recharts <span class="chip chip-sky">React</span></td>
+            <td>React-native, responsive, interactive tooltips, line + bar</td>
+            <td>NDVI/NDWI time series, weather bar chart</td>
+          </tr>
+          <tr>
+            <td>File Parse (front)</td>
+            <td>toGeoJSON.js <span class="chip chip-amber">+ JSZip</span></td>
+            <td>Parses KML and Shapefile in browser before upload</td>
+            <td>Upload tab: instant polygon preview</td>
+          </tr>
+          <tr>
+            <td>Styling</td>
+            <td>Tailwind CSS</td>
+            <td>Utility-first, fast, consistent design tokens</td>
+            <td>All UI components</td>
+          </tr>
+          <tr>
+            <td>API Framework</td>
+            <td>FastAPI <span class="chip chip-green">Python 3.11</span></td>
+            <td>Async, auto OpenAPI docs, best Python AI ecosystem integration</td>
+            <td>All REST endpoints, auth, file handling</td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>python-jose + passlib <span class="chip chip-green">JWT</span></td>
+            <td>Lightweight, standard, no extra service needed</td>
+            <td>Login, register, protected routes</td>
+          </tr>
+          <tr>
+            <td>Geospatial</td>
+            <td>Shapely + Fiona + pyproj <span class="chip chip-sky">+ GDAL</span></td>
+            <td>Parse/validate any polygon format, reproject, compute area</td>
+            <td>Upload parsing, area calculation</td>
+          </tr>
+          <tr>
+            <td>Satellite</td>
+            <td>Google Earth Engine API <span class="chip chip-green">geemap</span></td>
+            <td>Free for research, Sentinel-2 built-in, cloud masking</td>
+            <td>NDVI/NDWI extraction per polygon</td>
+          </tr>
+          <tr>
+            <td>Weather</td>
+            <td>ERA5-Land (CDS API) <span class="chip chip-amber">+ Open-Meteo</span></td>
+            <td>ERA5 for history, Open-Meteo for free 7-day forecast</td>
+            <td>Rain, ET₀, temperature history + forecast</td>
+          </tr>
+          <tr>
+            <td>Task Queue</td>
+            <td>Celery + Redis</td>
+            <td>Run GEE extraction async without blocking API (can take 30-60s)</td>
+            <td>Data extraction jobs, scheduled daily refresh</td>
+          </tr>
+          <tr>
+            <td>Database</td>
+            <td>PostgreSQL 16 + PostGIS <span class="chip chip-green">SQLAlchemy</span></td>
+            <td>Native geometry storage, spatial queries (ST_Area, ST_Intersects)</td>
+            <td>Users, parcels, time series, recommendations</td>
+          </tr>
+          <tr>
+            <td>ML (Phase 1)</td>
+            <td>XGBoost + SHAP <span class="chip chip-amber">scikit-learn</span></td>
+            <td>Works with 500 samples, fast inference, explainable feature importance</td>
+            <td>Stress score → irrigation decision</td>
+          </tr>
+          <tr>
+            <td>ML (Phase 2)</td>
+            <td>pytorch-forecasting (TFT) <span class="chip chip-amber">MLflow</span></td>
+            <td>60-day attention window, multi-input (sat + meteo + static)</td>
+            <td>7-day forecast, higher accuracy</td>
+          </tr>
+          <tr>
+            <td>SMS Alerts</td>
+            <td>Africa's Talking API</td>
+            <td>Morocco coverage, cheaper than Twilio, Arabic SMS support</td>
+            <td>Push irrigation alerts to farmer's phone</td>
+          </tr>
+          <tr>
+            <td>DevOps</td>
+            <td>Docker + docker-compose <span class="chip chip-sky">GitHub Actions</span></td>
+            <td>Reproducible local dev, easy deployment to any VPS</td>
+            <td>Local dev, CI/CD, production deploy</td>
+          </tr>
+          <tr>
+            <td>Hosting MVP</td>
+            <td>Railway <span class="chip chip-green">+ Vercel</span></td>
+            <td>Railway for FastAPI + Postgres + Redis; Vercel for Next.js frontend</td>
+            <td>Fast deployment, free tiers for MVP</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SECTION 6: FOLDER STRUCTURE ─── -->
+<section id="structure">
+  <div class="wrap">
+    <div class="sec-label">06 — Project Structure</div>
+    <div class="sec-title">Folder <em>Layout</em> — Start Here</div>
+    <p class="sec-sub">How to organize your codebase from day one so it scales cleanly.</p>
+
+    <div class="grid-2 reveal" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div>
+        <div style="font-family: var(--mono); font-size: 0.7rem; color: var(--leaf2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">📁 Backend (FastAPI)</div>
+        <div class="folder">
+<span class="f-dir">backend/</span>
+<span class="f-dir">├── api/</span>
+<span class="f-file">│   ├── routes/</span>
+<span class="f-green">│   │   ├── auth.py</span>         <span class="f-comment">← login, register</span>
+<span class="f-green">│   │   ├── parcels.py</span>      <span class="f-comment">← CRUD + upload</span>
+<span class="f-green">│   │   ├── analytics.py</span>    <span class="f-comment">← NDVI, meteo</span>
+<span class="f-green">│   │   └── recommend.py</span>    <span class="f-comment">← irrigation rec</span>
+<span class="f-file">│   ├── models/</span>
+<span class="f-amber">│   │   ├── user.py</span>         <span class="f-comment">← SQLAlchemy</span>
+<span class="f-amber">│   │   ├── parcel.py</span>       <span class="f-comment">← PostGIS geometry</span>
+<span class="f-amber">│   │   └── timeseries.py</span>   <span class="f-comment">← sat + meteo</span>
+<span class="f-file">│   └── schemas/</span>            <span class="f-comment">← Pydantic models</span>
+<span class="f-dir">├── workers/</span>
+<span class="f-green">│   ├── tasks.py</span>            <span class="f-comment">← Celery tasks</span>
+<span class="f-green">│   ├── gee_extractor.py</span>    <span class="f-comment">← Sentinel-2</span>
+<span class="f-green">│   └── era5_fetcher.py</span>     <span class="f-comment">← ERA5 weather</span>
+<span class="f-dir">├── ml/</span>
+<span class="f-amber">│   ├── features.py</span>         <span class="f-comment">← lag, rolling</span>
+<span class="f-amber">│   ├── train_xgb.py</span>        <span class="f-comment">← Phase 1 model</span>
+<span class="f-amber">│   ├── train_tft.py</span>        <span class="f-comment">← Phase 2 model</span>
+<span class="f-amber">│   └── inference.py</span>        <span class="f-comment">← predict endpoint</span>
+<span class="f-dir">├── geo/</span>
+<span class="f-green">│   ├── parser.py</span>           <span class="f-comment">← GeoJSON/KML/SHP</span>
+<span class="f-green">│   └── utils.py</span>            <span class="f-comment">← Shapely helpers</span>
+<span class="f-green">├── main.py</span>                 <span class="f-comment">← FastAPI app entry</span>
+<span class="f-green">├── config.py</span>               <span class="f-comment">← env vars</span>
+<span class="f-green">└── requirements.txt</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-family: var(--mono); font-size: 0.7rem; color: var(--sky); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">📁 Frontend (Next.js)</div>
+        <div class="folder">
+<span class="f-dir">frontend/</span>
+<span class="f-dir">├── app/</span>                    <span class="f-comment">← Next.js App Router</span>
+<span class="f-green">│   ├── page.tsx</span>            <span class="f-comment">← Landing /</span>
+<span class="f-green">│   ├── login/page.tsx</span>      <span class="f-comment">← Auth</span>
+<span class="f-green">│   ├── register/page.tsx</span>   <span class="f-comment">← Auth</span>
+<span class="f-green">│   └── dashboard/</span>
+<span class="f-green">│       ├── page.tsx</span>        <span class="f-comment">← Main dashboard</span>
+<span class="f-green">│       ├── [id]/page.tsx</span>   <span class="f-comment">← Field detail</span>
+<span class="f-green">│       └── settings/</span>
+<span class="f-dir">├── components/</span>
+<span class="f-amber">│   ├── Map/</span>
+<span class="f-amber">│   │   ├── FieldMap.tsx</span>    <span class="f-comment">← Leaflet display</span>
+<span class="f-amber">│   │   └── DrawTool.tsx</span>    <span class="f-comment">← leaflet-draw</span>
+<span class="f-amber">│   ├── Charts/</span>
+<span class="f-amber">│   │   ├── NdviChart.tsx</span>   <span class="f-comment">← Recharts line</span>
+<span class="f-amber">│   │   └── MeteoChart.tsx</span>  <span class="f-comment">← Recharts bar</span>
+<span class="f-amber">│   ├── Dashboard/</span>
+<span class="f-amber">│   │   ├── KpiCard.tsx</span>     <span class="f-comment">← NDVI, stress</span>
+<span class="f-amber">│   │   ├── RecoCard.tsx</span>    <span class="f-comment">← Irrigation rec</span>
+<span class="f-amber">│   │   └── Sidebar.tsx</span>     <span class="f-comment">← Parcel list</span>
+<span class="f-amber">│   └── AddField/</span>
+<span class="f-amber">│       ├── Modal.tsx</span>       <span class="f-comment">← Draw + Upload</span>
+<span class="f-amber">│       ├── DrawTab.tsx</span>     <span class="f-comment">← Leaflet draw</span>
+<span class="f-amber">│       └── UploadTab.tsx</span>   <span class="f-comment">← File dropzone</span>
+<span class="f-dir">├── lib/</span>
+<span class="f-green">│   ├── api.ts</span>              <span class="f-comment">← Axios client</span>
+<span class="f-green">│   └── geoparse.ts</span>         <span class="f-comment">← toGeoJSON utils</span>
+<span class="f-green">├── .env.local</span>
+<span class="f-green">└── package.json</span>
+        </div>
+
+        <div style="margin-top: 1rem;">
+          <div style="font-family: var(--mono); font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">📁 Root</div>
+          <div class="folder" style="padding: 1rem;">
+<span class="f-green">docker-compose.yml</span>         <span class="f-comment">← full stack local</span>
+<span class="f-green">.env</span>                         <span class="f-comment">← secrets</span>
+<span class="f-dir">backend/</span>                     <span class="f-comment">← FastAPI</span>
+<span class="f-dir">frontend/</span>                    <span class="f-comment">← Next.js</span>
+<span class="f-dir">notebooks/</span>                   <span class="f-comment">← GEE experiments</span>
+<span class="f-dir">models/</span>                      <span class="f-comment">← .pkl / .pt files</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div><strong>OleaSat</strong></div>
+  <div>Web App Flow & Technical Spec · FastAPI + Next.js + PostGIS + GEE</div>
+  <div>🇲🇦 Meknes / Fes · Olive Irrigation Intelligence</div>
+</footer>
+
+<script>
+// Scroll progress
+const sb = document.getElementById('sb');
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+  sb.style.width = pct + '%';
+});
+// Reveal
+const reveals = document.querySelectorAll('.reveal');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
+  });
+}, { threshold: 0.06 });
+reveals.forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
