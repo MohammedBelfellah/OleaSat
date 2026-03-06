@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
+
+import requests
 
 from app.config import settings
 
@@ -264,8 +267,20 @@ def get_satellite_features(
 
 
 # ---------------------------------------------------------------------------
-# Weather data (STUB – Task 2 will connect to Open-Meteo)
+# Weather data – Open-Meteo client (Spec §3.3)
 # ---------------------------------------------------------------------------
+
+# In-memory cache: key = (round(lat,2), round(lon,2), iso_date) → (timestamp, data)
+_weather_cache: Dict[Tuple[float, float, str], Tuple[float, Dict[str, Any]]] = {}
+_WEATHER_CACHE_TTL = 6 * 3600  # 6 hours in seconds
+
+# Seasonal fallback ET₀ averages (mm/day) by month for Morocco (semi-arid)
+# Used when Open-Meteo is persistently unreachable
+_SEASONAL_ET0_FALLBACK: Dict[int, float] = {
+    1: 1.8, 2: 2.5, 3: 3.5, 4: 4.5, 5: 5.5, 6: 6.5,
+    7: 7.0, 8: 6.5, 9: 5.0, 10: 3.5, 11: 2.5, 12: 1.8,
+}
+
 
 def _polygon_centroid(polygon: List[List[float]]) -> tuple[float, float]:
     """Return (lat, lon) centroid of a polygon."""
@@ -274,17 +289,96 @@ def _polygon_centroid(polygon: List[List[float]]) -> tuple[float, float]:
     return sum(lats) / len(lats), sum(lons) / len(lons)
 
 
-def get_weather_features(polygon: List[List[float]]) -> Dict[str, Any]:
-    """Fetch 7-day ET₀ and rainfall forecast.
-
-    TODO (Task 2): Replace with real Open-Meteo API call using
-    lat/lon from _polygon_centroid(polygon).
-    """
-    _ = polygon
-    return {
-        "et0_daily": [5.0, 4.8, 5.2, 5.1, 4.9, 5.3, 4.2],   # mm/day × 7
-        "rain_daily": [0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 1.2],   # mm/day × 7
+def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
+    """Call Open-Meteo API with retry on 5xx (3 attempts, exponential backoff, max ~8s)."""
+    url = settings.open_meteo_base_url
+    params = {
+        "latitude": round(lat, 4),
+        "longitude": round(lon, 4),
+        "daily": "et0_fao_evapotranspiration,precipitation_sum",
+        "forecast_days": 7,
+        "timezone": "Africa/Casablanca",
     }
+
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, params=params, timeout=10)
+            if resp.status_code < 500:
+                resp.raise_for_status()
+                return resp.json()
+            # 5xx → retry
+            last_exc = Exception(f"Open-Meteo returned {resp.status_code}")
+        except requests.RequestException as exc:
+            last_exc = exc
+
+        # Exponential backoff: 1s, 2s, 4s (total ≤ 7s)
+        if attempt < 2:
+            time.sleep(2 ** attempt)
+
+    raise last_exc or Exception("Open-Meteo request failed after 3 attempts")
+
+
+def _weather_fallback() -> Dict[str, Any]:
+    """Return hardcoded seasonal average when Open-Meteo is unreachable."""
+    month = datetime.now(tz=timezone.utc).month
+    et0_day = _SEASONAL_ET0_FALLBACK.get(month, 4.0)
+    return {
+        "et0_daily": [et0_day] * 7,
+        "rain_daily": [0.0] * 7,
+        "source_weather": "fallback_seasonal",
+    }
+
+
+def get_weather_features(polygon: List[List[float]]) -> Dict[str, Any]:
+    """Fetch 7-day ET₀ and rainfall from Open-Meteo (Spec §3.3).
+
+    - Caches per (lat_2dp, lon_2dp, date) for 6 hours.
+    - Retries 5xx 3× with exponential backoff.
+    - Falls back to seasonal average on persistent failure.
+    """
+    lat, lon = _polygon_centroid(polygon)
+    today_iso = datetime.now(tz=timezone.utc).date().isoformat()
+    cache_key = (round(lat, 2), round(lon, 2), today_iso)
+
+    # Check cache
+    if cache_key in _weather_cache:
+        cached_ts, cached_data = _weather_cache[cache_key]
+        if time.time() - cached_ts < _WEATHER_CACHE_TTL:
+            logger.debug("Weather cache hit for %s", cache_key)
+            return cached_data
+
+    try:
+        raw = _fetch_open_meteo(lat, lon)
+        daily = raw.get("daily", {})
+        et0_daily = daily.get("et0_fao_evapotranspiration", [])
+        rain_daily = daily.get("precipitation_sum", [])
+
+        # Pad to 7 days if API returns fewer
+        et0_daily = (et0_daily + [0.0] * 7)[:7]
+        rain_daily = (rain_daily + [0.0] * 7)[:7]
+
+        # Replace None values with 0.0
+        et0_daily = [v if v is not None else 0.0 for v in et0_daily]
+        rain_daily = [v if v is not None else 0.0 for v in rain_daily]
+
+        result = {
+            "et0_daily": et0_daily,
+            "rain_daily": rain_daily,
+            "source_weather": "open_meteo",
+        }
+
+        # Store in cache
+        _weather_cache[cache_key] = (time.time(), result)
+        logger.info("Open-Meteo OK for (%.2f, %.2f): ET₀=%s rain=%s",
+                    lat, lon, et0_daily, rain_daily)
+        return result
+
+    except Exception as exc:
+        logger.error("Open-Meteo failed for (%.4f, %.4f): %s — using seasonal fallback", lat, lon, exc)
+        fallback = _weather_fallback()
+        _weather_cache[cache_key] = (time.time(), fallback)
+        return fallback
 
 
 # ---------------------------------------------------------------------------

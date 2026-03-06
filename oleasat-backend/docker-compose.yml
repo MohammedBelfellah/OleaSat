@@ -8,3 +8,7 @@ services:
       - .env
     volumes:
       - ./app:/app/app
+      - oleasat-data:/app/data
+
+volumes:
+  oleasat-data:

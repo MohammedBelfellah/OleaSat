@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,7 @@ class SoilType(str, Enum):
 
 class HealthResponse(BaseModel):
     status: str
+    db: str = "ok"
 
 
 class RegisterRequest(BaseModel):
@@ -33,6 +34,43 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     farm_id: str
     message: str
+
+
+class CalculateRequest(BaseModel):
+    """Spec §5.2 — calculate by farmer_id (profile looked up from DB)."""
+    farmer_id: str
+
+
+class CalculateResponse(BaseModel):
+    farm_id: str
+    # Satellite
+    ndvi_current: float
+    ndvi_delta: float
+    ndmi_current: float
+    cloud_pct: float
+    date_used: str
+    images_used: int
+    source: str
+    note: Optional[str] = None
+    window_start: str
+    window_end: str
+    # FAO-56
+    et0_week: float
+    rain_week: float
+    p_eff: float
+    kc_applied: float
+    ir_mm: float
+    phase_label: str
+    is_critical_phase: bool
+    soil_factor: float
+    litres_per_tree: float
+    total_litres: float
+    total_m3: float
+    stress_mode: bool
+    survival_litres: Optional[float] = None
+    # Recommendation
+    recommendation: str
+    explanation: str
 
 
 class AnalyzeRequest(BaseModel):
@@ -97,3 +135,31 @@ class SatelliteIndicesResponse(BaseModel):
     note: Optional[str] = None
     window_start: str
     window_end: str
+
+
+# ---------- Metrics (Spec §5.3) ----------
+
+class FarmerOut(BaseModel):
+    id: str
+    state: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    tree_age: Optional[str] = None
+    soil_type: Optional[str] = None
+    tree_count: Optional[int] = None
+    spacing_m2: Optional[float] = None
+    created_at: Optional[str] = None
+    last_alert_at: Optional[str] = None
+
+
+class MetricsSummaryResponse(BaseModel):
+    """Spec §5.3 — GET /metrics/summary."""
+    farmers_active: int
+    alerts_sent_this_week: int
+    avg_litres_per_tree: float
+
+
+class MetricsFarmerResponse(BaseModel):
+    """Spec §5.3 — GET /metrics/farmer/{id}."""
+    farmer: FarmerOut
+    alerts: List[Dict[str, Any]]
