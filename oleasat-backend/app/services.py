@@ -10,6 +10,36 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# FAO-56 Olive Irrigation Constants (Spec §6)
+# ---------------------------------------------------------------------------
+KC_TABLE: Dict[int, tuple] = {
+    # month: (base_kc, phase_label, is_critical_phase)
+    1:  (0.65, "Repos végétatif", False),
+    2:  (0.65, "Repos végétatif", False),
+    3:  (0.70, "Floraison", True),
+    4:  (0.70, "Floraison", True),
+    5:  (0.70, "Floraison", True),
+    6:  (0.65, "Développement du fruit", False),
+    7:  (0.65, "Développement du fruit", False),
+    8:  (0.65, "Développement du fruit", False),
+    9:  (0.70, "Accumulation d'huile", True),
+    10: (0.70, "Accumulation d'huile", True),
+    11: (0.65, "Repos végétatif", False),
+    12: (0.65, "Repos végétatif", False),
+}
+
+SOIL_FACTOR: Dict[str, float] = {
+    "SANDY": 1.20,
+    "MEDIUM": 1.00,
+    "CLAY": 0.85,
+}
+
+AGE_MODIFIER: Dict[str, float] = {
+    "YOUNG": 0.85,
+    "ADULT": 1.00,
+}
+
+# ---------------------------------------------------------------------------
 # Sentinel Hub (sentinelhub-py) – lazy imports & config
 # ---------------------------------------------------------------------------
 _sh_config = None
@@ -233,59 +263,173 @@ def get_satellite_features(
         )
 
 
-def get_weather_features(polygon: List[List[float]]) -> Dict[str, float]:
+# ---------------------------------------------------------------------------
+# Weather data (STUB – Task 2 will connect to Open-Meteo)
+# ---------------------------------------------------------------------------
+
+def _polygon_centroid(polygon: List[List[float]]) -> tuple[float, float]:
+    """Return (lat, lon) centroid of a polygon."""
+    lons = [p[0] for p in polygon]
+    lats = [p[1] for p in polygon]
+    return sum(lats) / len(lats), sum(lons) / len(lons)
+
+
+def get_weather_features(polygon: List[List[float]]) -> Dict[str, Any]:
+    """Fetch 7-day ET₀ and rainfall forecast.
+
+    TODO (Task 2): Replace with real Open-Meteo API call using
+    lat/lon from _polygon_centroid(polygon).
+    """
     _ = polygon
     return {
-        "et0_week": 34.5,
-        "rain_week": 3.2,
+        "et0_daily": [5.0, 4.8, 5.2, 5.1, 4.9, 5.3, 4.2],   # mm/day × 7
+        "rain_daily": [0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 1.2],   # mm/day × 7
     }
 
 
-def compute_fao56_liters_per_tree(et0_week: float, rain_week: float) -> float:
-    net_need_mm = max(et0_week - rain_week, 0)
-    return round(net_need_mm * 0.9, 2)
+# ---------------------------------------------------------------------------
+# FAO-56 Engine (Spec §6)
+# ---------------------------------------------------------------------------
+
+def compute_effective_rainfall(rain_daily: List[float]) -> float:
+    """P_eff: only rain > 5 mm/day counts, at 80% efficiency (FAO heuristic)."""
+    p_eff = 0.0
+    for r in rain_daily:
+        if r > 5.0:
+            p_eff += r * 0.8
+    return p_eff
 
 
-def build_recommendation(liters_per_tree: float) -> str:
-    if liters_per_tree >= 25:
-        return "URGENT"
-    if liters_per_tree >= 10:
-        return "IRRIGATE"
-    return "SKIP"
+def compute_fao56(
+    et0_daily: List[float],
+    rain_daily: List[float],
+    month: int,
+    tree_age: str = "ADULT",
+    soil_type: str = "MEDIUM",
+    spacing_m2: float = 100.0,
+    tree_count: int = 100,
+) -> Dict[str, Any]:
+    """Full FAO-56 irrigation calculation for olives (Spec §6)."""
+    # Weekly totals
+    et0_week = sum(et0_daily)
+    rain_week = sum(rain_daily)
 
+    # Kc adjusted for month and tree age
+    base_kc, phase_label, is_critical = KC_TABLE.get(month, (0.65, "Repos végétatif", False))
+    age_mod = AGE_MODIFIER.get(tree_age.upper(), 1.0)
+    kc_adj = base_kc * age_mod
+
+    # Effective rainfall (§6.4)
+    p_eff = compute_effective_rainfall(rain_daily)
+
+    # Soil retention factor (§6.3)
+    soil_f = SOIL_FACTOR.get(soil_type.upper(), 1.0)
+
+    # Core formula: IR = (ET₀_week × Kc) − P_eff  (§6.1)
+    ir_mm = max((et0_week * kc_adj) - p_eff, 0.0)
+
+    # Volume per tree: IR_mm × spacing_m² × soil_factor
+    litres_per_tree = ir_mm * spacing_m2 * soil_f
+
+    # Total plot volume
+    total_litres = litres_per_tree * tree_count
+    total_m3 = total_litres / 1000.0
+
+    # Stress mode detection (§6.5)
+    stress_mode = et0_week > 45.0 and p_eff < 2.0
+    survival_litres = round(litres_per_tree * 0.35, 2) if stress_mode else None
+
+    return {
+        "et0_week": round(et0_week, 2),
+        "rain_week": round(rain_week, 2),
+        "p_eff": round(p_eff, 2),
+        "kc_applied": round(kc_adj, 3),
+        "ir_mm": round(ir_mm, 2),
+        "phase_label": phase_label,
+        "is_critical_phase": is_critical,
+        "soil_factor": soil_f,
+        "litres_per_tree": round(litres_per_tree, 2),
+        "total_litres": round(total_litres, 2),
+        "total_m3": round(total_m3, 3),
+        "stress_mode": stress_mode,
+        "survival_litres": survival_litres,
+    }
+
+
+def build_recommendation(litres_per_tree: float, stress_mode: bool) -> tuple[str, str]:
+    """Return (recommendation_code, explanation) based on irrigation need."""
+    if stress_mode:
+        return (
+            "URGENT",
+            "Mode sécheresse détecté (ET₀ > 45mm, pluie efficace < 2mm). "
+            "Irrigation de survie minimale requise pour protéger la récolte.",
+        )
+    if litres_per_tree >= 25:
+        return "URGENT", "Besoin d'irrigation urgent cette semaine."
+    if litres_per_tree >= 10:
+        return "IRRIGATE", "Irrigation recommandée cette semaine."
+    return "SKIP", "Pas d'irrigation nécessaire cette semaine."
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline
+# ---------------------------------------------------------------------------
 
 def run_pipeline(
     farm_id: str,
     polygon: List[List[float]],
-    tree_count: int,
+    tree_count: int = 100,
+    tree_age: str = "ADULT",
+    soil_type: str = "MEDIUM",
+    spacing_m2: float = 100.0,
     start_date: str | None = None,
     end_date: str | None = None,
     max_cloud_pct: float = 20,
-) -> Dict[str, float | str | int | None]:
+) -> Dict[str, Any]:
+    """Orchestrate satellite + weather + FAO-56 + recommendation."""
+    # 1. Satellite features (NDVI / NDMI via Sentinel Hub)
     sat = get_satellite_features(
         polygon=polygon,
         start_date=start_date,
         end_date=end_date,
         max_cloud_pct=max_cloud_pct,
     )
+
+    # 2. Weather forecast (7-day daily arrays)
     weather = get_weather_features(polygon)
 
-    liters_per_tree = compute_fao56_liters_per_tree(weather["et0_week"], weather["rain_week"])
-    total_m3 = round((liters_per_tree * tree_count) / 1000, 3)
-    recommendation = build_recommendation(liters_per_tree)
+    # 3. FAO-56 irrigation calculation
+    month = datetime.now(tz=timezone.utc).month
+    fao = compute_fao56(
+        et0_daily=weather["et0_daily"],
+        rain_daily=weather["rain_daily"],
+        month=month,
+        tree_age=tree_age,
+        soil_type=soil_type,
+        spacing_m2=spacing_m2,
+        tree_count=tree_count,
+    )
 
+    # 4. Recommendation
+    recommendation, explanation = build_recommendation(
+        fao["litres_per_tree"], fao["stress_mode"],
+    )
+
+    # Enrich explanation with satellite context
     explanation = (
-        f"NDVI is {sat['ndvi_current']} with delta {sat['ndvi_delta']}. "
-        f"Weekly ET0 is {weather['et0_week']} and rain is {weather['rain_week']}. "
-        f"Recommended action: {recommendation}."
+        f"NDVI={sat['ndvi_current']} (Δ{sat['ndvi_delta']}), "
+        f"NDMI={sat['ndmi_current']}. "
+        f"Phase: {fao['phase_label']} (Kc={fao['kc_applied']}). "
+        f"ET₀={fao['et0_week']}mm, Pluie={fao['rain_week']}mm, "
+        f"P_eff={fao['p_eff']}mm. "
+        f"IR={fao['ir_mm']}mm → {fao['litres_per_tree']}L/arbre. "
+        f"{explanation}"
     )
 
     return {
         "farm_id": farm_id,
         **sat,
-        **weather,
-        "liters_per_tree": liters_per_tree,
-        "total_m3": total_m3,
+        **fao,
         "recommendation": recommendation,
         "explanation": explanation,
     }
