@@ -6,8 +6,10 @@ from app.schemas import (
     HealthResponse,
     RegisterRequest,
     RegisterResponse,
+    SatelliteIndicesRequest,
+    SatelliteIndicesResponse,
 )
-from app.services import run_pipeline
+from app.services import get_satellite_features, run_pipeline
 
 router = APIRouter()
 
@@ -29,5 +31,19 @@ def analyze_farm(payload: AnalyzeRequest) -> AnalyzeResponse:
         farm_id=payload.farm_id,
         polygon=payload.polygon,
         tree_count=payload.tree_count,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        max_cloud_pct=payload.max_cloud_pct,
     )
     return AnalyzeResponse(**result)
+
+
+@router.post("/satellite/indices", response_model=SatelliteIndicesResponse)
+def satellite_indices(payload: SatelliteIndicesRequest) -> SatelliteIndicesResponse:
+    result = get_satellite_features(
+        polygon=payload.polygon,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        max_cloud_pct=payload.max_cloud_pct,
+    )
+    return SatelliteIndicesResponse(**result)
