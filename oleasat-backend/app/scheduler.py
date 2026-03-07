@@ -20,7 +20,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app.database import SessionLocal
 from app.models import AlertRecord, FarmerProfile
 from app.services import run_pipeline
-from app.templates import weekly_alert
+from app.templates import get_alert_message
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +65,9 @@ async def _weekly_job() -> None:
                     spacing_m2=farmer.spacing_m2 or 100.0,
                 )
 
-                # Build message
-                message = weekly_alert(
+                # Build message in farmer's preferred language
+                message = get_alert_message(
+                    language=farmer.language or "FR",
                     farmer_name=farmer.farmer_name or "Agriculteur",
                     recommendation=result["recommendation"],
                     litres_per_tree=result["litres_per_tree"],

@@ -1,6 +1,6 @@
 """Telegram message templates for OleaSat alerts (Spec §4.3-4.4).
 
-All messages are in French (default language for Moroccan olive farmers).
+Supports French (default) and Darija for Moroccan olive farmers.
 Uses Telegram MarkdownV2 formatting.
 """
 
@@ -83,6 +83,87 @@ def weekly_alert(
     ])
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Weekly irrigation alert — DARIJA
+# ---------------------------------------------------------------------------
+
+def weekly_alert_darija(
+    farmer_name: str,
+    recommendation: str,
+    litres_per_tree: float,
+    total_litres: float,
+    total_m3: float,
+    et0_week: float,
+    rain_week: float,
+    p_eff: float,
+    kc_applied: float,
+    phase_label: str,
+    ndvi_current: float,
+    stress_mode: bool = False,
+    survival_litres: Optional[float] = None,
+) -> str:
+    """Build the weekly Telegram alert message in Darija."""
+
+    emoji = {"URGENT": "🔴", "IRRIGATE": "🟡", "SKIP": "🟢"}.get(recommendation, "ℹ️")
+    status = {
+        "URGENT": "مستعجل — خاصك تسقي دابا",
+        "IRRIGATE": "خاصك تسقي هاد السيمانة",
+        "SKIP": "ماكاينش سقي هاد السيمانة",
+    }.get(recommendation, recommendation)
+
+    name_esc = _escape_md(farmer_name)
+    phase_esc = _escape_md(phase_label)
+
+    lines = [
+        f"{emoji} *تنبيه السقي الأسبوعي*",
+        "",
+        f"سلام {name_esc},",
+        "",
+        f"📊 *الحالة :* {_escape_md(status)}",
+        "",
+        "📋 *تفاصيل الحساب :*",
+        f"  • المرحلة : {phase_esc} \\(Kc\\={_escape_md(str(kc_applied))}\\)",
+        f"  • التبخر هاد السيمانة : {_escape_md(str(et0_week))} mm",
+        f"  • الشتا هاد السيمانة : {_escape_md(str(rain_week))} mm",
+        f"  • الشتا اللي نافعة : {_escape_md(str(p_eff))} mm",
+        f"  • NDVI : {_escape_md(str(ndvi_current))}",
+        "",
+        "💧 *كمية الماء :*",
+        f"  • لكل شجرة : *{_escape_md(str(litres_per_tree))} لتر*",
+        f"  • المجموع : *{_escape_md(str(total_litres))} لتر* \\({_escape_md(str(total_m3))} م³\\)",
+    ]
+
+    if stress_mode and survival_litres is not None:
+        lines.extend([
+            "",
+            "⚠️ *حالة الجفاف \\!*",
+            f"الحد الأدنى باش تنقذ الشجر : *{_escape_md(str(survival_litres))} لتر/شجرة*",
+            "سقي الزيتون ضروري دابا\\.",
+        ])
+
+    lines.extend([
+        "",
+        "—",
+        "🤖 _OleaSat — نظام السقي الذكي_",
+    ])
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Unified alert dispatcher — picks template by language
+# ---------------------------------------------------------------------------
+
+def get_alert_message(language: str = "FR", **kwargs) -> str:
+    """Build alert message in the farmer's preferred language.
+
+    Pass the same keyword arguments as weekly_alert().
+    """
+    if language == "DARIJA":
+        return weekly_alert_darija(**kwargs)
+    return weekly_alert(**kwargs)
 
 
 # ---------------------------------------------------------------------------

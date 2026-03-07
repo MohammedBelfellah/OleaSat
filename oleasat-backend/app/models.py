@@ -88,7 +88,7 @@ class FarmerProfile(Base):
 
     # Preferences
     language = Column(
-        Enum("FR", "AR", name="language_enum"),
+        Enum("FR", "AR", "DARIJA", name="language_enum"),
         nullable=False,
         default="FR",
     )

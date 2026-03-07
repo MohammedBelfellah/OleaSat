@@ -14,10 +14,11 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
 )
@@ -44,7 +45,7 @@ _app: Optional[Application] = None
 # ---------------------------------------------------------------------------
 
 async def _start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """/start {farmer_id} — deep-link binding."""
+    """/start {farmer_id} — deep-link binding + language choice."""
     chat_id = str(update.effective_chat.id)
 
     # Extract farmer_id from deep-link payload
@@ -76,10 +77,66 @@ async def _start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         db.commit()
         logger.info("Linked farmer %s → Telegram chat %s", farmer_id, chat_id)
 
+        # Send welcome message
         await update.message.reply_text(
             welcome_linked(farmer.farmer_name or "Agriculteur"),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
+
+        # Ask language preference
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🇫🇷 Français", callback_data=f"lang:FR:{farmer_id}"),
+                InlineKeyboardButton("🇲🇦 Darija", callback_data=f"lang:DARIJA:{farmer_id}"),
+            ],
+        ])
+        await update.message.reply_text(
+            "🌐 *Choisissez votre langue / اختار اللغة ديالك :*",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=keyboard,
+        )
+    finally:
+        db.close()
+
+
+async def _language_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle language selection button press."""
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data  # e.g. "lang:DARIJA:abc-123"
+    if not data or not data.startswith("lang:"):
+        return
+
+    parts = data.split(":", 2)
+    if len(parts) != 3:
+        return
+
+    _, lang, farmer_id = parts
+    if lang not in ("FR", "DARIJA"):
+        return
+
+    db = SessionLocal()
+    try:
+        farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farmer_id).first()
+        if not farmer:
+            await query.edit_message_text("❌ Erreur — profil introuvable\\.", parse_mode=ParseMode.MARKDOWN_V2)
+            return
+
+        farmer.language = lang
+        db.commit()
+        logger.info("Farmer %s chose language: %s", farmer_id, lang)
+
+        if lang == "DARIJA":
+            await query.edit_message_text(
+                "✅ *تم الاختيار \\!*\nغادي تجيك الرسائل بالدارجة كل أسبوع 🇲🇦",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        else:
+            await query.edit_message_text(
+                "✅ *Langue choisie : Français*\nVous recevrez vos alertes en français chaque semaine 🇫🇷",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
     finally:
         db.close()
 
@@ -180,6 +237,7 @@ def build_bot() -> Application | None:
     _app.add_handler(CommandHandler("start", _start_handler))
     _app.add_handler(CommandHandler("help", _help_handler))
     _app.add_handler(CommandHandler("status", _status_handler))
+    _app.add_handler(CallbackQueryHandler(_language_callback, pattern=r"^lang:"))
 
     logger.info("Telegram bot built successfully")
     return _app
