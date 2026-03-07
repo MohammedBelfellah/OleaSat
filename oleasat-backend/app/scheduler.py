@@ -63,6 +63,7 @@ async def _weekly_job() -> None:
                     tree_age=farmer.tree_age,
                     soil_type=farmer.soil_type,
                     spacing_m2=farmer.spacing_m2 or 100.0,
+                    irrigation_efficiency=farmer.irrigation_efficiency or 0.9,
                 )
 
                 # Build message in farmer's preferred language (AI-powered)
@@ -96,6 +97,10 @@ async def _weekly_job() -> None:
                     litres_per_tree=result["litres_per_tree"],
                     total_litres=result["total_litres"],
                     stress_mode=result["stress_mode"],
+                    ndvi_current=result["ndvi_current"],
+                    ndvi_delta=result["ndvi_delta"],
+                    ndmi_current=result["ndmi_current"],
+                    irrigation_efficiency=result["irrigation_efficiency"],
                     delivery_status=delivery_status,
                 )
                 db.add(alert)

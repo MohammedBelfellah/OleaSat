@@ -15,6 +15,13 @@ class SoilType(str, Enum):
     CLAY = "CLAY"
 
 
+class FeedbackType(str, Enum):
+    WORKED = "WORKED"
+    TOO_MUCH = "TOO_MUCH"
+    TOO_LITTLE = "TOO_LITTLE"
+    NOT_APPLIED = "NOT_APPLIED"
+
+
 class HealthResponse(BaseModel):
     status: str
     db: str = "ok"
@@ -62,6 +69,12 @@ class RegisterRequest(BaseModel):
     soil_type: SoilType = Field(default=SoilType.MEDIUM, description="SANDY, MEDIUM, or CLAY")
     tree_count: int = Field(default=100, ge=1)
     spacing_m2: float = Field(default=100.0, gt=0, description="Surface area per tree in m²")
+    irrigation_efficiency: float = Field(
+        default=0.9,
+        ge=0.5,
+        le=1.0,
+        description="Irrigation system efficiency (1.0 ideal, 0.9 typical drip)",
+    )
     polygon: List[List[float]] = Field(description="List of [lon, lat] points")
 
 
@@ -108,6 +121,9 @@ class CalculateResponse(BaseModel):
     phase_label: str
     is_critical_phase: bool
     soil_factor: float
+    irrigation_efficiency: float
+    litres_per_tree_net: float
+    total_litres_net: float
     litres_per_tree: float
     total_litres: float
     total_m3: float
@@ -125,6 +141,12 @@ class AnalyzeRequest(BaseModel):
     tree_age: TreeAge = Field(default=TreeAge.ADULT, description="YOUNG (< 5 years) or ADULT")
     soil_type: SoilType = Field(default=SoilType.MEDIUM, description="SANDY, MEDIUM, or CLAY")
     spacing_m2: float = Field(default=100.0, gt=0, description="Surface area per tree in m²")
+    irrigation_efficiency: float = Field(
+        default=0.9,
+        ge=0.5,
+        le=1.0,
+        description="Irrigation system efficiency (1.0 ideal, 0.9 typical drip)",
+    )
     start_date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
     end_date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
     max_cloud_pct: float = Field(default=20, ge=0, le=100)
@@ -152,6 +174,9 @@ class AnalyzeResponse(BaseModel):
     phase_label: str
     is_critical_phase: bool
     soil_factor: float
+    irrigation_efficiency: float
+    litres_per_tree_net: float
+    total_litres_net: float
     litres_per_tree: float
     total_litres: float
     total_m3: float
@@ -230,6 +255,7 @@ class FarmerOut(BaseModel):
     soil_type: Optional[str] = None
     tree_count: Optional[int] = None
     spacing_m2: Optional[float] = None
+    irrigation_efficiency: Optional[float] = None
     created_at: Optional[str] = None
     last_alert_at: Optional[str] = None
 
@@ -261,6 +287,7 @@ class FarmListItem(BaseModel):
     soil_type: Optional[str] = None
     tree_count: Optional[int] = None
     spacing_m2: Optional[float] = None
+    irrigation_efficiency: Optional[float] = None
     telegram_linked: bool = False
     created_at: Optional[str] = None
     last_alert_at: Optional[str] = None
@@ -284,3 +311,32 @@ class AdminDashboardResponse(BaseModel):
     stress_alerts_count: int
     urgent_farms: List[FarmListItem]
     recent_alerts: List[Dict[str, Any]]
+
+
+class FeedbackCreateRequest(BaseModel):
+    farmer_id: str
+    alert_id: Optional[str] = None
+    feedback_type: FeedbackType
+    rating: Optional[int] = Field(default=None, ge=1, le=5)
+    comment: Optional[str] = Field(default=None, max_length=500)
+
+
+class FeedbackOut(BaseModel):
+    id: str
+    farmer_id: str
+    alert_id: Optional[str] = None
+    feedback_type: FeedbackType
+    rating: Optional[int] = None
+    comment: Optional[str] = None
+    created_at: str
+
+
+class FeedbackSummaryResponse(BaseModel):
+    farmer_id: str
+    total_feedback: int
+    worked_count: int
+    too_much_count: int
+    too_little_count: int
+    not_applied_count: int
+    avg_rating: float
+    feedback: List[FeedbackOut]

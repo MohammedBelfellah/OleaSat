@@ -15,6 +15,7 @@
 - [API Documentation](#api-documentation)
   - [Interactive Docs (Swagger)](#interactive-docs)
   - [Authentication Flow](#authentication-flow)
+  - [Complete Endpoint List](#complete-endpoint-list)
   - [Health](#1-health-check)
   - [Auth Register](#2-auth-register)
   - [Auth Login](#3-auth-login)
@@ -27,7 +28,9 @@
   - [Telegram Deep-Link](#10-telegram-deep-link)
   - [Metrics Summary](#11-metrics-summary)
   - [Metrics Farmer History](#12-metrics-farmer-history)
-  - [Admin Trigger Weekly](#13-admin-trigger-weekly)
+  - [Feedback Submit](#13-feedback-submit)
+  - [Feedback History](#14-feedback-history)
+  - [Admin Trigger Weekly](#15-admin-trigger-weekly)
 - [FAO-56 Engine](#fao-56-engine)
 - [Telegram Bot](#telegram-bot)
 - [Scheduler](#scheduler)
@@ -98,17 +101,18 @@ curl http://localhost:8001/api/v1/health
 
 ## Environment Variables
 
-| Variable              | Required | Default                                  | Description                        |
-| --------------------- | -------- | ---------------------------------------- | ---------------------------------- |
-| `JWT_SECRET_KEY`      | **Yes**  | `change-me-in-production`                | 256-bit hex key for signing JWTs   |
-| `JWT_EXPIRE_MINUTES`  | No       | `1440` (24h)                             | Token expiry in minutes            |
-| `DATABASE_URL`        | No       | `sqlite:///./data/oleasat.db`            | SQLAlchemy database URL            |
-| `TELEGRAM_BOT_TOKEN`  | No\*     | —                                        | Telegram bot token from @BotFather |
-| `OPEN_METEO_BASE_URL` | No       | `https://api.open-meteo.com/v1/forecast` | Weather API base URL               |
-| `SH_CLIENT_ID`        | No\*\*   | —                                        | Sentinel Hub OAuth2 client ID      |
-| `SH_CLIENT_SECRET`    | No\*\*   | —                                        | Sentinel Hub OAuth2 secret         |
-| `SH_BASE_URL`         | No       | `https://services.sentinel-hub.com`      | Sentinel Hub API base              |
-| `SH_TOKEN_URL`        | No       | (auto)                                   | Sentinel Hub token endpoint        |
+| Variable              | Required | Default                                  | Description                                        |
+| --------------------- | -------- | ---------------------------------------- | -------------------------------------------------- |
+| `JWT_SECRET_KEY`      | **Yes**  | `change-me-in-production`                | 256-bit hex key for signing JWTs                   |
+| `JWT_EXPIRE_MINUTES`  | No       | `1440` (24h)                             | Token expiry in minutes                            |
+| `DATABASE_URL`        | No       | `sqlite:///./data/oleasat.db`            | SQLAlchemy database URL                            |
+| `TELEGRAM_BOT_TOKEN`  | No\*     | —                                        | Telegram bot token from @BotFather                 |
+| `OPEN_METEO_BASE_URL` | No       | `https://api.open-meteo.com/v1/forecast` | Weather API base URL                               |
+| `SH_CLIENT_ID`        | No\*\*   | —                                        | Sentinel Hub OAuth2 client ID                      |
+| `SH_CLIENT_SECRET`    | No\*\*   | —                                        | Sentinel Hub OAuth2 secret                         |
+| `SH_BASE_URL`         | No       | `https://services.sentinel-hub.com`      | Sentinel Hub API base                              |
+| `SH_TOKEN_URL`        | No       | (auto)                                   | Sentinel Hub token endpoint                        |
+| `GROQ_API_KEY`        | No       | —                                        | Groq API key for AI-personalized Telegram messages |
 
 > \*If `TELEGRAM_BOT_TOKEN` is not set, the bot and scheduler start silently — the API works without Telegram.  
 > \*\*If Sentinel Hub credentials are not set, satellite endpoints return deterministic mock values (`source: "mock"`).
@@ -150,6 +154,31 @@ FastAPI auto-generates interactive documentation:
 **Protected endpoints (Bearer token required):**
 
 - Everything else
+
+### Complete Endpoint List
+
+| Method | Path                                  | Role                     |
+| ------ | ------------------------------------- | ------------------------ |
+| GET    | `/api/v1/health`                      | Public                   |
+| POST   | `/api/v1/auth/register`               | Public                   |
+| POST   | `/api/v1/auth/login`                  | Public                   |
+| GET    | `/api/v1/auth/me`                     | Any authenticated user   |
+| POST   | `/api/v1/register`                    | FARMER/ADMIN             |
+| GET    | `/api/v1/farms`                       | FARMER(own) / ADMIN(all) |
+| GET    | `/api/v1/farms/{farm_id}`             | Owner or ADMIN           |
+| DELETE | `/api/v1/farms/{farm_id}`             | Owner or ADMIN           |
+| POST   | `/api/v1/calculate`                   | Owner or ADMIN           |
+| POST   | `/api/v1/analyze`                     | Any authenticated user   |
+| POST   | `/api/v1/satellite/indices`           | Any authenticated user   |
+| GET    | `/api/v1/farms/{farm_id}/water-map`   | Owner or ADMIN           |
+| GET    | `/api/v1/telegram-link/{farmer_id}`   | Owner or ADMIN           |
+| GET    | `/api/v1/metrics/summary`             | Any authenticated user   |
+| GET    | `/api/v1/metrics/farmer/{farmer_id}`  | Owner or ADMIN           |
+| POST   | `/api/v1/feedback`                    | Owner or ADMIN           |
+| GET    | `/api/v1/feedback/farmer/{farmer_id}` | Owner or ADMIN           |
+| GET    | `/api/v1/admin/dashboard`             | ADMIN only               |
+| GET    | `/api/v1/admin/farmers`               | ADMIN only               |
+| POST   | `/api/v1/admin/trigger-weekly`        | ADMIN only               |
 
 ---
 
@@ -297,6 +326,7 @@ Returns the authenticated user's profile.
   "soil_type": "MEDIUM",
   "tree_count": 120,
   "spacing_m2": 100.0,
+  "irrigation_efficiency": 0.9,
   "polygon": [
     [-5.55, 33.89],
     [-5.54, 33.89],
@@ -306,16 +336,17 @@ Returns the authenticated user's profile.
 }
 ```
 
-| Field         | Type    | Default    | Description                            |
-| ------------- | ------- | ---------- | -------------------------------------- |
-| `farmer_name` | string  | _required_ | Min 2 characters                       |
-| `phone`       | string  | _required_ | Min 6 characters                       |
-| `crop_type`   | string  | `"olive"`  | Crop type                              |
-| `tree_age`    | enum    | `"ADULT"`  | `YOUNG` (< 5 years) or `ADULT`         |
-| `soil_type`   | enum    | `"MEDIUM"` | `SANDY`, `MEDIUM`, or `CLAY`           |
-| `tree_count`  | integer | `100`      | Number of trees (≥ 1)                  |
-| `spacing_m2`  | float   | `100.0`    | Surface area per tree in m²            |
-| `polygon`     | array   | _required_ | List of `[longitude, latitude]` points |
+| Field                   | Type    | Default    | Description                                                                  |
+| ----------------------- | ------- | ---------- | ---------------------------------------------------------------------------- |
+| `farmer_name`           | string  | _required_ | Min 2 characters                                                             |
+| `phone`                 | string  | _required_ | Min 6 characters                                                             |
+| `crop_type`             | string  | `"olive"`  | Crop type                                                                    |
+| `tree_age`              | enum    | `"ADULT"`  | `YOUNG` (< 5 years) or `ADULT`                                               |
+| `soil_type`             | enum    | `"MEDIUM"` | `SANDY`, `MEDIUM`, or `CLAY`                                                 |
+| `tree_count`            | integer | `100`      | Number of trees (≥ 1)                                                        |
+| `spacing_m2`            | float   | `100.0`    | Surface area per tree in m²                                                  |
+| `irrigation_efficiency` | float   | `0.9`      | System efficiency (0.5–1.0), used to convert net water need to applied water |
+| `polygon`               | array   | _required_ | List of `[longitude, latitude]` points                                       |
 
 **Response 201:**
 
@@ -377,6 +408,9 @@ The system:
   "phase_label": "Floraison",
   "is_critical_phase": true,
   "soil_factor": 1.0,
+  "irrigation_efficiency": 0.9,
+  "litres_per_tree_net": 24.0,
+  "total_litres_net": 2880.0,
   "litres_per_tree": 0.0,
   "total_litres": 0.0,
   "total_m3": 0.0,
@@ -425,17 +459,18 @@ Same pipeline as `/calculate` but you pass all parameters directly — no databa
 }
 ```
 
-| Field           | Type    | Default     | Description               |
-| --------------- | ------- | ----------- | ------------------------- |
-| `farm_id`       | string  | _required_  | Any identifier            |
-| `polygon`       | array   | _required_  | `[lon, lat]` points       |
-| `tree_count`    | integer | `100`       | Number of trees           |
-| `tree_age`      | enum    | `"ADULT"`   | `YOUNG` or `ADULT`        |
-| `soil_type`     | enum    | `"MEDIUM"`  | `SANDY`, `MEDIUM`, `CLAY` |
-| `spacing_m2`    | float   | `100.0`     | m² per tree               |
-| `start_date`    | string  | 30 days ago | `YYYY-MM-DD`              |
-| `end_date`      | string  | today       | `YYYY-MM-DD`              |
-| `max_cloud_pct` | float   | `20`        | Max cloud cover % (0–100) |
+| Field                   | Type    | Default     | Description                     |
+| ----------------------- | ------- | ----------- | ------------------------------- |
+| `farm_id`               | string  | _required_  | Any identifier                  |
+| `polygon`               | array   | _required_  | `[lon, lat]` points             |
+| `tree_count`            | integer | `100`       | Number of trees                 |
+| `tree_age`              | enum    | `"ADULT"`   | `YOUNG` or `ADULT`              |
+| `soil_type`             | enum    | `"MEDIUM"`  | `SANDY`, `MEDIUM`, `CLAY`       |
+| `spacing_m2`            | float   | `100.0`     | m² per tree                     |
+| `irrigation_efficiency` | float   | `0.9`       | Irrigation efficiency (0.5–1.0) |
+| `start_date`            | string  | 30 days ago | `YYYY-MM-DD`                    |
+| `end_date`              | string  | today       | `YYYY-MM-DD`                    |
+| `max_cloud_pct`         | float   | `20`        | Max cloud cover % (0–100)       |
 
 **Response 200:** Same structure as `/calculate`.
 
@@ -656,6 +691,10 @@ Generates a Telegram deep-link URL for a farmer. The frontend displays this as a
       "litres_per_tree": 0.0,
       "total_litres": 0.0,
       "stress_mode": false,
+      "ndvi_current": 0.5667,
+      "ndvi_delta": -0.0054,
+      "ndmi_current": 0.1674,
+      "irrigation_efficiency": 0.9,
       "delivery_status": "SENT"
     }
   ]
@@ -664,7 +703,68 @@ Generates a Telegram deep-link URL for a farmer. The frontend displays this as a
 
 ---
 
-### 13. Admin Trigger Weekly
+### 13. Feedback Submit
+
+|            |                    |
+| ---------- | ------------------ |
+| **Method** | `POST`             |
+| **Path**   | `/api/v1/feedback` |
+| **Auth**   | Bearer token       |
+
+Submit farmer feedback about recommendation quality.
+
+**Request body:**
+
+```json
+{
+  "farmer_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "alert_id": "06de5238-7bfa-4759-bab9-a3e641c3e1bc",
+  "feedback_type": "WORKED",
+  "rating": 5,
+  "comment": "Recommendation matched field observations"
+}
+```
+
+`feedback_type` values: `WORKED`, `TOO_MUCH`, `TOO_LITTLE`, `NOT_APPLIED`
+
+---
+
+### 14. Feedback History
+
+|            |                                       |
+| ---------- | ------------------------------------- |
+| **Method** | `GET`                                 |
+| **Path**   | `/api/v1/feedback/farmer/{farmer_id}` |
+| **Auth**   | Bearer token                          |
+
+Returns feedback summary and history for one farmer.
+
+**Response 200 (trimmed):**
+
+```json
+{
+  "farmer_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "total_feedback": 4,
+  "worked_count": 2,
+  "too_much_count": 1,
+  "too_little_count": 1,
+  "not_applied_count": 0,
+  "avg_rating": 4.25,
+  "feedback": [
+    {
+      "id": "...",
+      "feedback_type": "WORKED",
+      "rating": 5,
+      "comment": "Great recommendation",
+      "created_at": "2026-03-07T08:12:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 15. Admin Trigger Weekly
 
 |            |                                |
 | ---------- | ------------------------------ |
@@ -813,17 +913,18 @@ curl -X POST http://localhost:8001/api/v1/admin/trigger-weekly \
 oleasat-backend/
 ├── docker-compose.yml        # Docker services + data volume
 ├── Dockerfile                # Python 3.11-slim image
-├── requirements.txt          # 13 Python dependencies
+├── requirements.txt          # Python dependencies
 ├── .env                      # Environment variables (not in git)
 ├── .env.example              # Template for .env
 └── app/
     ├── main.py               # FastAPI app + CORS + lifespan (bot + scheduler)
     ├── config.py             # Settings from environment variables
     ├── auth.py               # JWT + bcrypt + get_current_user dependency
-    ├── routes.py             # 12 API endpoints with auth protection
+    ├── routes.py             # 20 API endpoints with auth + RBAC
     ├── services.py           # Business logic (Satellite + Weather + FAO-56)
+    ├── ai_messages.py        # Groq-powered AI personalization (with fallback)
     ├── schemas.py            # Pydantic request/response models
-    ├── models.py             # SQLAlchemy ORM (User + FarmerProfile + AlertRecord)
+    ├── models.py             # SQLAlchemy ORM (User + FarmerProfile + AlertRecord + FarmerFeedback)
     ├── database.py           # DB engine + session factory
     ├── bot.py                # Telegram bot (deep-link + /help + /status)
     ├── templates.py          # Telegram message templates (French)
@@ -861,25 +962,42 @@ oleasat-backend/
 | `spacing_m2`             | float           | Surface area per tree                  |
 | `farmer_name`            | string          | Farmer's name                          |
 | `phone`                  | string          | Phone number                           |
-| `language`               | enum            | FR / AR (default: FR)                  |
+| `language`               | enum            | FR / AR / DARIJA (default: FR)         |
+| `irrigation_efficiency`  | float           | System efficiency factor (default 0.9) |
 | `created_at`             | timestamp       | Registration date                      |
 | `last_alert_at`          | timestamp       | Last alert sent                        |
 | `alert_failed`           | boolean         | True if last dispatch failed           |
 
 ### AlertRecord (append-only)
 
-| Column            | Type      | Description                        |
-| ----------------- | --------- | ---------------------------------- |
-| `id`              | UUID PK   | Internal identifier                |
-| `farmer_id`       | UUID FK   | References FarmerProfile           |
-| `sent_at`         | timestamp | When the alert was created         |
-| `et0_weekly_mm`   | float     | ET₀ sum used in calculation        |
-| `rain_weekly_mm`  | float     | Total rainfall                     |
-| `kc_applied`      | float     | Final Kc after adjustments         |
-| `litres_per_tree` | float     | Recommended litres per tree        |
-| `total_litres`    | float     | Total recommended volume           |
-| `stress_mode`     | boolean   | Whether drought mode was triggered |
-| `delivery_status` | enum      | SENT / FAILED / RETRIED            |
+| Column                  | Type      | Description                                  |
+| ----------------------- | --------- | -------------------------------------------- |
+| `id`                    | UUID PK   | Internal identifier                          |
+| `farmer_id`             | UUID FK   | References FarmerProfile                     |
+| `sent_at`               | timestamp | When the alert was created                   |
+| `et0_weekly_mm`         | float     | ET₀ sum used in calculation                  |
+| `rain_weekly_mm`        | float     | Total rainfall                               |
+| `kc_applied`            | float     | Final Kc after adjustments                   |
+| `ndvi_current`          | float     | NDVI snapshot at calculation time            |
+| `ndvi_delta`            | float     | NDVI change vs previous acquisition          |
+| `ndmi_current`          | float     | NDMI snapshot at calculation time            |
+| `irrigation_efficiency` | float     | Efficiency snapshot used in water conversion |
+| `litres_per_tree`       | float     | Recommended litres per tree                  |
+| `total_litres`          | float     | Total recommended volume                     |
+| `stress_mode`           | boolean   | Whether drought mode was triggered           |
+| `delivery_status`       | enum      | SENT / FAILED / RETRIED                      |
+
+### FarmerFeedback
+
+| Column          | Type      | Description                                  |
+| --------------- | --------- | -------------------------------------------- |
+| `id`            | UUID PK   | Internal identifier                          |
+| `farmer_id`     | UUID FK   | Related farmer                               |
+| `alert_id`      | UUID FK   | Optional related alert                       |
+| `feedback_type` | enum      | WORKED / TOO_MUCH / TOO_LITTLE / NOT_APPLIED |
+| `rating`        | integer   | Optional score (1–5)                         |
+| `comment`       | string    | Optional farmer note                         |
+| `created_at`    | timestamp | Submission time                              |
 
 ---
 
@@ -941,6 +1059,7 @@ const res = await fetch(`${API_BASE}/register`, {
     tree_age: "ADULT",
     soil_type: "MEDIUM",
     tree_count: 120,
+    irrigation_efficiency: 0.9,
   }),
 });
 const { farm_id } = await res.json();
@@ -1000,7 +1119,30 @@ const detail = await fetch(`${API_BASE}/metrics/farmer/${farm_id}`, {
 // detail.farmer, detail.alerts[]
 ```
 
-### 8. Error Handling
+### 8. Feedback Loop
+
+```javascript
+// Submit feedback after farmer checks recommendation result
+await fetch(`${API_BASE}/feedback`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    farmer_id: farm_id,
+    alert_id: latestAlertId,
+    feedback_type: "WORKED", // or TOO_MUCH / TOO_LITTLE / NOT_APPLIED
+    rating: 5,
+    comment: "Field result matched advice",
+  }),
+});
+
+// Read feedback summary for dashboards
+const feedback = await fetch(`${API_BASE}/feedback/farmer/${farm_id}`, {
+  headers,
+}).then((r) => r.json());
+// feedback.avg_rating, feedback.worked_count, feedback.feedback[]
+```
+
+### 9. Error Handling
 
 ```javascript
 // 401 → token expired or invalid → redirect to login

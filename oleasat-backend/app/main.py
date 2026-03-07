@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.database import engine
+from app.database import apply_runtime_migrations, engine
 from app.models import Base
 from app.routes import router
 
@@ -20,6 +20,7 @@ os.makedirs("data", exist_ok=True)
 
 # Create all tables on startup
 Base.metadata.create_all(bind=engine)
+apply_runtime_migrations()
 
 
 @asynccontextmanager
@@ -59,7 +60,8 @@ crop water model to generate personalised weekly irrigation recommendations.
 2. **Calculate** irrigation needs — weather + satellite data fetched automatically
 3. **Visualize** water stress zones via per-cell map endpoint
 4. **Receive** weekly Telegram alerts in French or Darija (AI-personalized)
-5. **Monitor** via farmer and admin metrics endpoints
+5. **Improve** recommendations via farmer feedback loop
+6. **Monitor** via farmer and admin metrics endpoints
 
 ## Core Formula (FAO-56)
 
@@ -81,13 +83,13 @@ TAGS_METADATA = [
     {"name": "Irrigation", "description": "FAO-56 irrigation calculation engine"},
     {"name": "Satellite", "description": "Sentinel-2 vegetation indices (NDVI / NDMI)"},
     {"name": "Telegram", "description": "Telegram bot deep-link and notifications"},
-    {"name": "Metrics", "description": "Monitoring, statistics, and alert history"},
+    {"name": "Metrics", "description": "Monitoring, statistics, alert history, and feedback loop"},
     {"name": "Admin", "description": "Admin-only — dashboard insights, manage all farms, trigger jobs"},
 ]
 
 app = FastAPI(
     title="OleaBot API",
-    version="1.1.0",
+    version="1.2.0",
     description=DESCRIPTION,
     openapi_tags=TAGS_METADATA,
     contact={"name": "OleaBot Team"},

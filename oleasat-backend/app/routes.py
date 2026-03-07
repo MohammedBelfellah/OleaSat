@@ -7,11 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_admin, hash_password, verify_password, create_access_token
 from app.database import get_db
-from app.models import AlertRecord, FarmerProfile, User
+from app.models import AlertRecord, FarmerFeedback, FarmerProfile, User
 from app.schemas import (
     AdminDashboardResponse,
     AnalyzeRequest,
     AnalyzeResponse,
+    FeedbackCreateRequest,
+    FeedbackOut,
+    FeedbackSummaryResponse,
     AuthLoginRequest,
     AuthRegisterRequest,
     AuthTokenResponse,
@@ -177,6 +180,7 @@ def register_farm(
         soil_type=payload.soil_type.value,
         tree_count=payload.tree_count,
         spacing_m2=payload.spacing_m2,
+        irrigation_efficiency=payload.irrigation_efficiency,
     )
     db.add(farmer)
     db.commit()
@@ -231,6 +235,7 @@ def calculate(
         tree_age=farmer.tree_age,
         soil_type=farmer.soil_type,
         spacing_m2=farmer.spacing_m2 or 100.0,
+        irrigation_efficiency=farmer.irrigation_efficiency or 0.9,
     )
 
     # Log alert record
@@ -242,6 +247,10 @@ def calculate(
         litres_per_tree=result["litres_per_tree"],
         total_litres=result["total_litres"],
         stress_mode=result["stress_mode"],
+        ndvi_current=result["ndvi_current"],
+        ndvi_delta=result["ndvi_delta"],
+        ndmi_current=result["ndmi_current"],
+        irrigation_efficiency=result["irrigation_efficiency"],
         delivery_status="SENT",
     )
     db.add(alert)
@@ -268,6 +277,7 @@ def analyze_farm(payload: AnalyzeRequest, _user=Depends(get_current_user)) -> An
         tree_age=payload.tree_age.value,
         soil_type=payload.soil_type.value,
         spacing_m2=payload.spacing_m2,
+        irrigation_efficiency=payload.irrigation_efficiency,
         start_date=payload.start_date,
         end_date=payload.end_date,
         max_cloud_pct=payload.max_cloud_pct,
@@ -407,6 +417,7 @@ def metrics_farmer(
             soil_type=farmer.soil_type,
             tree_count=farmer.tree_count,
             spacing_m2=farmer.spacing_m2,
+            irrigation_efficiency=farmer.irrigation_efficiency,
             created_at=farmer.created_at.isoformat() if farmer.created_at else None,
             last_alert_at=farmer.last_alert_at.isoformat() if farmer.last_alert_at else None,
         ),
@@ -420,9 +431,120 @@ def metrics_farmer(
                 "litres_per_tree": a.litres_per_tree,
                 "total_litres": a.total_litres,
                 "stress_mode": a.stress_mode,
+                "ndvi_current": a.ndvi_current,
+                "ndvi_delta": a.ndvi_delta,
+                "ndmi_current": a.ndmi_current,
+                "irrigation_efficiency": a.irrigation_efficiency,
                 "delivery_status": a.delivery_status,
             }
             for a in alerts
+        ],
+    )
+
+
+@router.post("/feedback", response_model=FeedbackOut, tags=["Metrics"],
+             summary="Submit farmer feedback on irrigation recommendation")
+def submit_feedback(
+    payload: FeedbackCreateRequest,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> FeedbackOut:
+    """Create a feedback entry to improve recommendation quality.
+
+    Feedback types:
+    - `WORKED`: recommendation was accurate
+    - `TOO_MUCH`: recommendation suggested too much water
+    - `TOO_LITTLE`: recommendation suggested too little water
+    - `NOT_APPLIED`: farmer did not apply recommendation
+    """
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == payload.farmer_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if user.role != "ADMIN" and farmer.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    if payload.alert_id:
+        alert = (
+            db.query(AlertRecord)
+            .filter(AlertRecord.id == payload.alert_id, AlertRecord.farmer_id == payload.farmer_id)
+            .first()
+        )
+        if not alert:
+            raise HTTPException(status_code=404, detail="alert_not_found")
+
+    feedback = FarmerFeedback(
+        farmer_id=payload.farmer_id,
+        alert_id=payload.alert_id,
+        feedback_type=payload.feedback_type.value,
+        rating=payload.rating,
+        comment=payload.comment,
+    )
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+
+    return FeedbackOut(
+        id=feedback.id,
+        farmer_id=feedback.farmer_id,
+        alert_id=feedback.alert_id,
+        feedback_type=feedback.feedback_type,
+        rating=feedback.rating,
+        comment=feedback.comment,
+        created_at=feedback.created_at.isoformat(),
+    )
+
+
+@router.get("/feedback/farmer/{farmer_id}", response_model=FeedbackSummaryResponse, tags=["Metrics"],
+            summary="Get farmer feedback history and summary")
+def get_farmer_feedback(
+    farmer_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> FeedbackSummaryResponse:
+    """Returns feedback loop history and aggregate counts for one farmer."""
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farmer_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if user.role != "ADMIN" and farmer.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    entries = (
+        db.query(FarmerFeedback)
+        .filter(FarmerFeedback.farmer_id == farmer_id)
+        .order_by(FarmerFeedback.created_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    worked = sum(1 for entry in entries if entry.feedback_type == "WORKED")
+    too_much = sum(1 for entry in entries if entry.feedback_type == "TOO_MUCH")
+    too_little = sum(1 for entry in entries if entry.feedback_type == "TOO_LITTLE")
+    not_applied = sum(1 for entry in entries if entry.feedback_type == "NOT_APPLIED")
+
+    ratings = [entry.rating for entry in entries if entry.rating is not None]
+    avg_rating = round(sum(ratings) / len(ratings), 2) if ratings else 0.0
+
+    return FeedbackSummaryResponse(
+        farmer_id=farmer_id,
+        total_feedback=len(entries),
+        worked_count=worked,
+        too_much_count=too_much,
+        too_little_count=too_little,
+        not_applied_count=not_applied,
+        avg_rating=avg_rating,
+        feedback=[
+            FeedbackOut(
+                id=entry.id,
+                farmer_id=entry.farmer_id,
+                alert_id=entry.alert_id,
+                feedback_type=entry.feedback_type,
+                rating=entry.rating,
+                comment=entry.comment,
+                created_at=entry.created_at.isoformat(),
+            )
+            for entry in entries
         ],
     )
 
@@ -470,6 +592,7 @@ def _farm_to_list_item(f: FarmerProfile) -> FarmListItem:
         soil_type=f.soil_type,
         tree_count=f.tree_count,
         spacing_m2=f.spacing_m2,
+        irrigation_efficiency=f.irrigation_efficiency,
         telegram_linked=f.telegram_chat_id is not None,
         created_at=f.created_at.isoformat() if f.created_at else None,
         last_alert_at=f.last_alert_at.isoformat() if f.last_alert_at else None,
@@ -536,6 +659,10 @@ def get_farm_detail(
             "litres_per_tree": last_alert.litres_per_tree,
             "total_litres": last_alert.total_litres,
             "stress_mode": last_alert.stress_mode,
+            "ndvi_current": last_alert.ndvi_current,
+            "ndvi_delta": last_alert.ndvi_delta,
+            "ndmi_current": last_alert.ndmi_current,
+            "irrigation_efficiency": last_alert.irrigation_efficiency,
             "delivery_status": last_alert.delivery_status,
         }
 

@@ -795,6 +795,7 @@ def compute_fao56(
     soil_type: str = "MEDIUM",
     spacing_m2: float = 100.0,
     tree_count: int = 100,
+    irrigation_efficiency: float = 0.9,
 ) -> Dict[str, Any]:
     """Full FAO-56 irrigation calculation for olives (Spec §6)."""
     # Weekly totals
@@ -811,14 +812,19 @@ def compute_fao56(
 
     # Soil retention factor (§6.3)
     soil_f = SOIL_FACTOR.get(soil_type.upper(), 1.0)
+    irrigation_efficiency = max(0.5, min(1.0, float(irrigation_efficiency or 0.9)))
 
     # Core formula: IR = (ET₀_week × Kc) − P_eff  (§6.1)
     ir_mm = max((et0_week * kc_adj) - p_eff, 0.0)
 
-    # Volume per tree: IR_mm × spacing_m² × soil_factor
-    litres_per_tree = ir_mm * spacing_m2 * soil_f
+    # Net plant requirement per tree: IR_mm × spacing_m² × soil_factor
+    litres_per_tree_net = ir_mm * spacing_m2 * soil_f
 
-    # Total plot volume
+    # Gross applied water accounting for irrigation losses
+    litres_per_tree = litres_per_tree_net / irrigation_efficiency
+
+    # Total plot volume (gross and net)
+    total_litres_net = litres_per_tree_net * tree_count
     total_litres = litres_per_tree * tree_count
     total_m3 = total_litres / 1000.0
 
@@ -835,6 +841,9 @@ def compute_fao56(
         "phase_label": phase_label,
         "is_critical_phase": is_critical,
         "soil_factor": soil_f,
+        "irrigation_efficiency": round(irrigation_efficiency, 3),
+        "litres_per_tree_net": round(litres_per_tree_net, 2),
+        "total_litres_net": round(total_litres_net, 2),
         "litres_per_tree": round(litres_per_tree, 2),
         "total_litres": round(total_litres, 2),
         "total_m3": round(total_m3, 3),
@@ -869,6 +878,7 @@ def run_pipeline(
     tree_age: str = "ADULT",
     soil_type: str = "MEDIUM",
     spacing_m2: float = 100.0,
+    irrigation_efficiency: float = 0.9,
     start_date: str | None = None,
     end_date: str | None = None,
     max_cloud_pct: float = 20,
@@ -895,11 +905,12 @@ def run_pipeline(
         soil_type=soil_type,
         spacing_m2=spacing_m2,
         tree_count=tree_count,
+        irrigation_efficiency=irrigation_efficiency,
     )
 
     # 4. Recommendation
     recommendation, explanation = build_recommendation(
-        fao["litres_per_tree"], fao["stress_mode"],
+        fao["litres_per_tree_net"], fao["stress_mode"],
     )
 
     # Enrich explanation with satellite context
@@ -909,7 +920,8 @@ def run_pipeline(
         f"Phase: {fao['phase_label']} (Kc={fao['kc_applied']}). "
         f"ET₀={fao['et0_week']}mm, Pluie={fao['rain_week']}mm, "
         f"P_eff={fao['p_eff']}mm. "
-        f"IR={fao['ir_mm']}mm → {fao['litres_per_tree']}L/arbre. "
+        f"IR={fao['ir_mm']}mm → net={fao['litres_per_tree_net']}L/arbre, "
+        f"appliqué={fao['litres_per_tree']}L/arbre (eff={fao['irrigation_efficiency']}). "
         f"{explanation}"
     )
 

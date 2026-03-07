@@ -85,6 +85,7 @@ class FarmerProfile(Base):
     )
     tree_count = Column(Integer, nullable=True)
     spacing_m2 = Column(Float, nullable=True, default=100.0)
+    irrigation_efficiency = Column(Float, nullable=False, default=0.90)
 
     # Preferences
     language = Column(
@@ -105,6 +106,7 @@ class FarmerProfile(Base):
 
     # Relationships
     alerts = relationship("AlertRecord", back_populates="farmer", cascade="all, delete-orphan")
+    feedback_entries = relationship("FarmerFeedback", back_populates="farmer", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<FarmerProfile id={self.id} state={self.state}>"
@@ -129,6 +131,10 @@ class AlertRecord(Base):
     litres_per_tree = Column(Float, nullable=False)
     total_litres = Column(Float, nullable=False)
     stress_mode = Column(Boolean, nullable=False, default=False)
+    ndvi_current = Column(Float, nullable=True)
+    ndvi_delta = Column(Float, nullable=True)
+    ndmi_current = Column(Float, nullable=True)
+    irrigation_efficiency = Column(Float, nullable=True)
 
     # Delivery
     delivery_status = Column(
@@ -139,6 +145,31 @@ class AlertRecord(Base):
 
     # Relationship
     farmer = relationship("FarmerProfile", back_populates="alerts")
+    feedback_entries = relationship("FarmerFeedback", back_populates="alert")
 
     def __repr__(self) -> str:
         return f"<AlertRecord id={self.id} farmer={self.farmer_id} litres={self.litres_per_tree}>"
+
+
+class FarmerFeedback(Base):
+    """Farmer feedback loop entries for improving recommendation quality."""
+
+    __tablename__ = "farmer_feedback"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    farmer_id = Column(String(36), ForeignKey("farmer_profiles.id"), nullable=False, index=True)
+    alert_id = Column(String(36), ForeignKey("alert_records.id"), nullable=True, index=True)
+
+    feedback_type = Column(
+        Enum("WORKED", "TOO_MUCH", "TOO_LITTLE", "NOT_APPLIED", name="feedback_type_enum"),
+        nullable=False,
+    )
+    rating = Column(Integer, nullable=True)
+    comment = Column(String(500), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    farmer = relationship("FarmerProfile", back_populates="feedback_entries")
+    alert = relationship("AlertRecord", back_populates="feedback_entries")
+
+    def __repr__(self) -> str:
+        return f"<FarmerFeedback id={self.id} farmer={self.farmer_id} type={self.feedback_type}>"
