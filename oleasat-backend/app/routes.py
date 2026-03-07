@@ -29,9 +29,14 @@ router = APIRouter()
 
 # ---------- Health ----------
 
-@router.get("/health", response_model=HealthResponse)
+@router.get("/health", response_model=HealthResponse, tags=["Health"],
+            summary="System health check")
 def health_check(db: Session = Depends(get_db)) -> HealthResponse:
-    """Health check — verifies DB connectivity (Spec §5.3)."""
+    """Returns system and database connectivity status.
+
+    - `status`: always `ok` if the server is running
+    - `db`: `ok` if SQLite is reachable, `error` otherwise
+    """
     db_status = "ok"
     try:
         from sqlalchemy import text
@@ -43,12 +48,21 @@ def health_check(db: Session = Depends(get_db)) -> HealthResponse:
 
 # ---------- Register ----------
 
-@router.post("/register", response_model=RegisterResponse)
+@router.post("/register", response_model=RegisterResponse, tags=["Farms"],
+             summary="Register a new farm",
+             status_code=201)
 def register_farm(
     payload: RegisterRequest,
     db: Session = Depends(get_db),
 ) -> RegisterResponse:
-    """Register a new farm — persists to DB (Spec §4.1)."""
+    """Creates a new farmer profile in the database.
+
+    Provide the orchard polygon (list of `[lon, lat]` points), tree parameters,
+    and farmer contact info. A unique `farm_id` (UUID) is returned — use it
+    for `/calculate` and `/metrics/farmer/{id}` calls.
+
+    **Defaults:** tree_age=ADULT, soil_type=MEDIUM, tree_count=100, spacing_m2=100
+    """
     polygon_coords = [[p[0], p[1]] for p in payload.polygon]
 
     # Compute centroid for lat/lon
@@ -80,12 +94,22 @@ def register_farm(
 
 # ---------- Calculate (by farmer_id) ----------
 
-@router.post("/calculate", response_model=CalculateResponse)
+@router.post("/calculate", response_model=CalculateResponse, tags=["Irrigation"],
+             summary="Calculate irrigation for a registered farmer")
 def calculate(
     payload: CalculateRequest,
     db: Session = Depends(get_db),
 ) -> CalculateResponse:
-    """Calculate irrigation for a registered farmer (Spec §5.2)."""
+    """Looks up the farmer profile from the database, then runs the full pipeline:
+
+    1. **Satellite** — Fetches NDVI/NDMI from Sentinel Hub (last 30 days)
+    2. **Weather** — 7-day ET₀ + rainfall forecast from Open-Meteo
+    3. **FAO-56** — Computes IR, litres/tree, total volume, stress mode
+    4. **Alert log** — Saves an AlertRecord to the database
+
+    Returns `404` if the farmer_id doesn't exist.  
+    Returns `422` if the profile is incomplete (missing polygon, age, soil, or tree_count).
+    """
     farmer = db.query(FarmerProfile).filter(FarmerProfile.id == payload.farmer_id).first()
     if not farmer:
         raise HTTPException(status_code=404, detail="farmer_not_found")
@@ -134,9 +158,14 @@ def calculate(
 
 # ---------- Analyze (direct, no DB lookup) ----------
 
-@router.post("/analyze", response_model=AnalyzeResponse)
+@router.post("/analyze", response_model=AnalyzeResponse, tags=["Irrigation"],
+             summary="Analyze irrigation (direct parameters, no DB)")
 def analyze_farm(payload: AnalyzeRequest) -> AnalyzeResponse:
-    """Run full pipeline with explicit parameters (no DB lookup needed)."""
+    """Same pipeline as `/calculate` but you pass all parameters directly.
+    No database lookup or persistence — useful for testing and one-off queries.
+
+    Optional: `start_date` / `end_date` (YYYY-MM-DD) to control the satellite window.
+    """
     result = run_pipeline(
         farm_id=payload.farm_id,
         polygon=payload.polygon,
@@ -153,8 +182,19 @@ def analyze_farm(payload: AnalyzeRequest) -> AnalyzeResponse:
 
 # ---------- Satellite indices ----------
 
-@router.post("/satellite/indices", response_model=SatelliteIndicesResponse)
+@router.post("/satellite/indices", response_model=SatelliteIndicesResponse, tags=["Satellite"],
+             summary="Get NDVI & NDMI vegetation indices")
 def satellite_indices(payload: SatelliteIndicesRequest) -> SatelliteIndicesResponse:
+    """Queries Sentinel Hub Statistical API for Sentinel-2 L2A imagery over the given polygon.
+
+    Returns:
+    - **NDVI** (Normalized Difference Vegetation Index): plant health indicator
+    - **NDMI** (Normalized Difference Moisture Index): canopy water content
+    - **ndvi_delta**: change from previous acquisition (trend detection)
+    - Cloud-masked using the Scene Classification Layer (SCL)
+
+    If Sentinel Hub is not configured, returns deterministic mock values (`source: mock`).
+    """
     result = get_satellite_features(
         polygon=payload.polygon,
         start_date=payload.start_date,
@@ -166,9 +206,15 @@ def satellite_indices(payload: SatelliteIndicesRequest) -> SatelliteIndicesRespo
 
 # ---------- Metrics (Spec §5.3) ----------
 
-@router.get("/metrics/summary", response_model=MetricsSummaryResponse)
+@router.get("/metrics/summary", response_model=MetricsSummaryResponse, tags=["Metrics"],
+            summary="Dashboard aggregate statistics")
 def metrics_summary(db: Session = Depends(get_db)) -> MetricsSummaryResponse:
-    """Aggregate counts for dashboard (Spec §5.3)."""
+    """Returns aggregate counts for monitoring dashboards:
+
+    - `farmers_active` — number of farmers with state = ACTIVE
+    - `alerts_sent_this_week` — alert records created in the last 7 days
+    - `avg_litres_per_tree` — global average litres/tree across all alerts
+    """
     from sqlalchemy import func
 
     farmers_active = db.query(FarmerProfile).filter(FarmerProfile.state == "ACTIVE").count()
@@ -186,12 +232,18 @@ def metrics_summary(db: Session = Depends(get_db)) -> MetricsSummaryResponse:
     )
 
 
-@router.get("/metrics/farmer/{farmer_id}", response_model=MetricsFarmerResponse)
+@router.get("/metrics/farmer/{farmer_id}", response_model=MetricsFarmerResponse, tags=["Metrics"],
+            summary="Full alert history for one farmer")
 def metrics_farmer(
     farmer_id: str,
     db: Session = Depends(get_db),
 ) -> MetricsFarmerResponse:
-    """Full alert history for one farmer (Spec §5.3)."""
+    """Returns the farmer profile and a chronological list of all AlertRecords
+    (newest first). Each alert includes ET₀, rainfall, Kc, litres/tree,
+    stress mode, and delivery status.
+
+    Returns `404` if the farmer_id doesn't exist.
+    """
     farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farmer_id).first()
     if not farmer:
         raise HTTPException(status_code=404, detail="farmer_not_found")

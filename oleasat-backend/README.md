@@ -1,52 +1,508 @@
-# OleaSat Backend (Minimal Start)
+# 🫒 OleaBot — Irrigation Advisory Backend
 
-Simple FastAPI backend starter for OleaSat.
+> Conversational irrigation advisory system for Moroccan olive orchards.  
+> Combines **FAO-56 Penman-Monteith** crop water model, **Open-Meteo** weather data,
+> and **Sentinel Hub** satellite imagery to generate personalised weekly irrigation
+> recommendations.
 
-## Structure
+---
 
-- `app/main.py` FastAPI app entry
-- `app/routes.py` API endpoints
-- `app/services.py` Pipeline logic stubs
-- `app/schemas.py` Request/response schemas
-- `app/config.py` Environment settings
+## Table of Contents
 
-## Endpoints
+- [Architecture](#architecture)
+- [Quick Start (Docker)](#quick-start-docker)
+- [Environment Variables](#environment-variables)
+- [API Documentation](#api-documentation)
+  - [Interactive Docs (Swagger)](#interactive-docs)
+  - [Health](#1-health-check)
+  - [Register Farm](#2-register-farm)
+  - [Calculate Irrigation](#3-calculate-irrigation)
+  - [Analyze (Direct)](#4-analyze-direct)
+  - [Satellite Indices](#5-satellite-indices)
+  - [Metrics Summary](#6-metrics-summary)
+  - [Metrics Farmer History](#7-metrics-farmer-history)
+- [FAO-56 Engine](#fao-56-engine)
+- [Project Structure](#project-structure)
+- [Data Model](#data-model)
 
-- `GET /api/v1/health`
-- `POST /api/v1/register`
-- `POST /api/v1/analyze`
-- `POST /api/v1/satellite/indices`
+---
 
-## Run locally
+## Architecture
 
-```bash
-python -m venv .venv
-. .venv/Scripts/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+```
+┌─────────────────────────────────────────────────────────┐
+│                  OleaBot Backend                        │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│   Client (Postman / Bot / Dashboard)                    │
+│       │                                                 │
+│       ▼                                                 │
+│   ┌─────────────────────┐                               │
+│   │   FastAPI + Pydantic │  ← routes.py                │
+│   │   /api/v1/*          │                              │
+│   └────────┬────────────┘                               │
+│            │                                            │
+│   ┌────────┴────────────────────────────┐               │
+│   │         services.py                  │              │
+│   │  ┌──────────┐ ┌──────────┐ ┌──────┐ │              │
+│   │  │Sentinel  │ │Open-Meteo│ │FAO-56│ │              │
+│   │  │Hub API   │ │Weather   │ │Engine│ │              │
+│   │  │NDVI/NDMI │ │ET₀+Rain  │ │IR/L  │ │              │
+│   │  └──────────┘ └──────────┘ └──────┘ │              │
+│   └────────┬────────────────────────────┘               │
+│            │                                            │
+│   ┌────────┴──────┐                                     │
+│   │  SQLite DB    │  ← models.py                       │
+│   │  (SQLAlchemy) │                                     │
+│   │  FarmerProfile│                                     │
+│   │  AlertRecord  │                                     │
+│   └───────────────┘                                     │
+└─────────────────────────────────────────────────────────┘
 ```
 
-Open: `http://localhost:8000/docs`
+---
 
-## Run with Docker
+## Quick Start (Docker)
 
 ```bash
+# 1. Clone and enter the backend directory
+cd oleasat-backend
+
+# 2. Create your environment file
 cp .env.example .env
-docker compose up --build
+# Edit .env with your Sentinel Hub credentials (optional)
+
+# 3. Build and run
+docker compose up --build -d
+
+# 4. Verify
+curl http://localhost:8001/api/v1/health
+# → {"status":"ok","db":"ok"}
 ```
 
-Open: `http://localhost:8000/docs`
+**Base URL:** `http://localhost:8001/api/v1`
 
-## Sentinel Hub (satellite data)
+---
 
-The backend uses the **sentinelhub-py** Python package to query the **Sentinel Hub Statistical API** (Copernicus Data Space Ecosystem). It fetches Sentinel-2 L2A imagery and computes NDVI / NDMI statistics over a farm polygon. OAuth2 authentication is handled automatically by the package.
+## Environment Variables
 
-If Sentinel Hub credentials are configured, `POST /api/v1/satellite/indices` and `POST /api/v1/analyze` will query real satellite data.
-If not configured, the API returns deterministic mock values (`source = mock`) so development can continue.
+| Variable              | Required | Default                                  | Description                   |
+| --------------------- | -------- | ---------------------------------------- | ----------------------------- |
+| `DATABASE_URL`        | No       | `sqlite:///./data/oleasat.db`            | SQLAlchemy database URL       |
+| `OPEN_METEO_BASE_URL` | No       | `https://api.open-meteo.com/v1/forecast` | Weather API base URL          |
+| `SH_CLIENT_ID`        | No\*     | —                                        | Sentinel Hub OAuth2 client ID |
+| `SH_CLIENT_SECRET`    | No\*     | —                                        | Sentinel Hub OAuth2 secret    |
+| `SH_BASE_URL`         | No       | `https://services.sentinel-hub.com`      | Sentinel Hub API base         |
+| `SH_TOKEN_URL`        | No       | (auto)                                   | Sentinel Hub token endpoint   |
 
-Environment variables:
+> \*If Sentinel Hub credentials are not set, satellite endpoints return deterministic
+> mock values (`source: "mock"`) so development can continue without credentials.
 
-- `SH_CLIENT_ID` – OAuth2 client ID from Copernicus Data Space
-- `SH_CLIENT_SECRET` – OAuth2 client secret
-- `SH_BASE_URL` (default: `https://sh.dataspace.copernicus.eu`)
-- `SH_TOKEN_URL` (default: CDSE token endpoint)
+---
+
+## API Documentation
+
+### Interactive Docs
+
+FastAPI auto-generates interactive documentation:
+
+| Format         | URL                                                        |
+| -------------- | ---------------------------------------------------------- |
+| **Swagger UI** | [http://localhost:8001/docs](http://localhost:8001/docs)   |
+| **ReDoc**      | [http://localhost:8001/redoc](http://localhost:8001/redoc) |
+
+---
+
+### 1. Health Check
+
+|            |                  |
+| ---------- | ---------------- |
+| **Method** | `GET`            |
+| **Path**   | `/api/v1/health` |
+| **Auth**   | None             |
+
+**Response 200:**
+
+```json
+{
+  "status": "ok",
+  "db": "ok"
+}
+```
+
+---
+
+### 2. Register Farm
+
+|            |                    |
+| ---------- | ------------------ |
+| **Method** | `POST`             |
+| **Path**   | `/api/v1/register` |
+| **Auth**   | None               |
+
+**Request body:**
+
+```json
+{
+  "farmer_name": "Ahmed",
+  "phone": "0612345678",
+  "tree_age": "ADULT",
+  "soil_type": "MEDIUM",
+  "tree_count": 120,
+  "spacing_m2": 100.0,
+  "polygon": [
+    [-5.55, 33.89],
+    [-5.54, 33.89],
+    [-5.54, 33.88],
+    [-5.55, 33.88]
+  ]
+}
+```
+
+| Field         | Type    | Default    | Description                            |
+| ------------- | ------- | ---------- | -------------------------------------- |
+| `farmer_name` | string  | _required_ | Min 2 characters                       |
+| `phone`       | string  | _required_ | Min 6 characters                       |
+| `crop_type`   | string  | `"olive"`  | Crop type                              |
+| `tree_age`    | enum    | `"ADULT"`  | `YOUNG` (< 5 years) or `ADULT`         |
+| `soil_type`   | enum    | `"MEDIUM"` | `SANDY`, `MEDIUM`, or `CLAY`           |
+| `tree_count`  | integer | `100`      | Number of trees (≥ 1)                  |
+| `spacing_m2`  | float   | `100.0`    | Surface area per tree in m²            |
+| `polygon`     | array   | _required_ | List of `[longitude, latitude]` points |
+
+**Response 201:**
+
+```json
+{
+  "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "message": "Farm registered successfully"
+}
+```
+
+> ⚠️ **Save the `farm_id`** — you need it for `/calculate` and `/metrics/farmer/{id}`.
+
+---
+
+### 3. Calculate Irrigation
+
+|            |                     |
+| ---------- | ------------------- |
+| **Method** | `POST`              |
+| **Path**   | `/api/v1/calculate` |
+| **Auth**   | None (internal)     |
+
+**Request body:**
+
+```json
+{
+  "farmer_id": "36201fe0-4deb-4809-bdab-01b47593e4be"
+}
+```
+
+The system:
+
+1. Looks up the farmer's profile from the database
+2. Fetches NDVI/NDMI from Sentinel Hub
+3. Fetches 7-day weather forecast from Open-Meteo
+4. Runs the FAO-56 calculation
+5. Logs an AlertRecord in the database
+
+**Response 200:**
+
+```json
+{
+  "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "ndvi_current": 0.5667,
+  "ndvi_delta": -0.0054,
+  "ndmi_current": 0.1674,
+  "cloud_pct": 20.0,
+  "date_used": "2026-02-21",
+  "images_used": 2,
+  "source": "sentinel_hub",
+  "note": null,
+  "window_start": "2026-02-04",
+  "window_end": "2026-03-06",
+  "et0_week": 14.14,
+  "rain_week": 29.6,
+  "p_eff": 23.52,
+  "kc_applied": 0.7,
+  "ir_mm": 0.0,
+  "phase_label": "Floraison",
+  "is_critical_phase": true,
+  "soil_factor": 1.0,
+  "litres_per_tree": 0.0,
+  "total_litres": 0.0,
+  "total_m3": 0.0,
+  "stress_mode": false,
+  "survival_litres": null,
+  "recommendation": "SKIP",
+  "explanation": "NDVI=0.5667 (Δ-0.0054), NDMI=0.1674. Phase: Floraison ..."
+}
+```
+
+| Error                | Code | When                                      |
+| -------------------- | ---- | ----------------------------------------- |
+| `farmer_not_found`   | 404  | Unknown farmer_id                         |
+| `incomplete_profile` | 422  | Missing polygon, age, soil, or tree_count |
+
+---
+
+### 4. Analyze (Direct)
+
+|            |                   |
+| ---------- | ----------------- |
+| **Method** | `POST`            |
+| **Path**   | `/api/v1/analyze` |
+| **Auth**   | None              |
+
+Same pipeline as `/calculate` but you pass all parameters directly — no database lookup.
+
+**Request body:**
+
+```json
+{
+  "farm_id": "test-farm",
+  "polygon": [
+    [-5.55, 33.89],
+    [-5.54, 33.89],
+    [-5.54, 33.88],
+    [-5.55, 33.88]
+  ],
+  "tree_count": 120,
+  "tree_age": "ADULT",
+  "soil_type": "MEDIUM",
+  "spacing_m2": 100.0,
+  "start_date": "2026-02-01",
+  "end_date": "2026-03-06",
+  "max_cloud_pct": 20
+}
+```
+
+| Field           | Type    | Default     | Description               |
+| --------------- | ------- | ----------- | ------------------------- |
+| `farm_id`       | string  | _required_  | Any identifier            |
+| `polygon`       | array   | _required_  | `[lon, lat]` points       |
+| `tree_count`    | integer | `100`       | Number of trees           |
+| `tree_age`      | enum    | `"ADULT"`   | `YOUNG` or `ADULT`        |
+| `soil_type`     | enum    | `"MEDIUM"`  | `SANDY`, `MEDIUM`, `CLAY` |
+| `spacing_m2`    | float   | `100.0`     | m² per tree               |
+| `start_date`    | string  | 30 days ago | `YYYY-MM-DD`              |
+| `end_date`      | string  | today       | `YYYY-MM-DD`              |
+| `max_cloud_pct` | float   | `20`        | Max cloud cover % (0–100) |
+
+**Response 200:** Same structure as `/calculate`.
+
+---
+
+### 5. Satellite Indices
+
+|            |                             |
+| ---------- | --------------------------- |
+| **Method** | `POST`                      |
+| **Path**   | `/api/v1/satellite/indices` |
+| **Auth**   | None                        |
+
+Returns NDVI and NDMI vegetation indices without running the FAO-56 engine.
+
+**Request body:**
+
+```json
+{
+  "polygon": [
+    [-5.55, 33.89],
+    [-5.54, 33.89],
+    [-5.54, 33.88],
+    [-5.55, 33.88]
+  ],
+  "max_cloud_pct": 20
+}
+```
+
+**Response 200:**
+
+```json
+{
+  "ndvi_current": 0.5667,
+  "ndvi_delta": -0.0054,
+  "ndmi_current": 0.1674,
+  "cloud_pct": 20.0,
+  "date_used": "2026-02-21",
+  "images_used": 2,
+  "source": "sentinel_hub",
+  "note": null,
+  "window_start": "2026-02-04",
+  "window_end": "2026-03-06"
+}
+```
+
+---
+
+### 6. Metrics Summary
+
+|            |                           |
+| ---------- | ------------------------- |
+| **Method** | `GET`                     |
+| **Path**   | `/api/v1/metrics/summary` |
+| **Auth**   | None                      |
+
+**Response 200:**
+
+```json
+{
+  "farmers_active": 1,
+  "alerts_sent_this_week": 1,
+  "avg_litres_per_tree": 0.0
+}
+```
+
+---
+
+### 7. Metrics Farmer History
+
+|            |                                      |
+| ---------- | ------------------------------------ |
+| **Method** | `GET`                                |
+| **Path**   | `/api/v1/metrics/farmer/{farmer_id}` |
+| **Auth**   | None                                 |
+
+**Response 200:**
+
+```json
+{
+  "farmer": {
+    "id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+    "state": "ACTIVE",
+    "latitude": 33.885,
+    "longitude": -5.545,
+    "tree_age": "ADULT",
+    "soil_type": "MEDIUM",
+    "tree_count": 120,
+    "spacing_m2": 100.0,
+    "created_at": "2026-03-06T23:18:16.100171",
+    "last_alert_at": "2026-03-06T23:18:31.402112"
+  },
+  "alerts": [
+    {
+      "id": "06de5238-7bfa-4759-bab9-a3e641c3e1bc",
+      "sent_at": "2026-03-06T23:18:31.423570",
+      "et0_weekly_mm": 14.14,
+      "rain_weekly_mm": 29.6,
+      "kc_applied": 0.7,
+      "litres_per_tree": 0.0,
+      "total_litres": 0.0,
+      "stress_mode": false,
+      "delivery_status": "SENT"
+    }
+  ]
+}
+```
+
+---
+
+## FAO-56 Engine
+
+### Core Formula
+
+```
+IR = (ET₀_week × Kc_adj) − P_eff
+litres_per_tree = IR_mm × spacing_m² × soil_factor
+total_litres = litres_per_tree × tree_count
+```
+
+### Kc Lookup Table (Olive, Morocco)
+
+| Months    | Phase           | Base Kc | Adult | Young (×0.85) |
+| --------- | --------------- | ------- | ----- | ------------- |
+| Nov – Feb | Repos végétatif | 0.65    | 0.65  | 0.55          |
+| Mar – May | Floraison ⚠️    | 0.70    | 0.70  | 0.60          |
+| Jun – Aug | Dév. du fruit   | 0.65    | 0.65  | 0.55          |
+| Sep – Oct | Accum. huile ⚠️ | 0.70    | 0.70  | 0.60          |
+
+### Soil Factor
+
+| Soil Type | Factor | Rationale                          |
+| --------- | ------ | ---------------------------------- |
+| SANDY     | ×1.20  | Fast drainage → more water needed  |
+| MEDIUM    | ×1.00  | Reference (limon)                  |
+| CLAY      | ×0.85  | High retention → less water needed |
+
+### Effective Rainfall
+
+```
+for each day:
+  if rain > 5mm → P_eff += rain × 0.8
+  else          → P_eff += 0  (too small to reach roots)
+```
+
+### Stress Mode
+
+Triggered when `ET₀_week > 45mm` AND `P_eff < 2mm`.  
+Sets `survival_litres = litres_per_tree × 0.35` (minimum to protect flowers/fruit).
+
+### Recommendation Codes
+
+| Code       | Condition                                  |
+| ---------- | ------------------------------------------ |
+| `URGENT`   | stress_mode = true OR litres_per_tree ≥ 25 |
+| `IRRIGATE` | litres_per_tree ≥ 10                       |
+| `SKIP`     | litres_per_tree < 10                       |
+
+---
+
+## Project Structure
+
+```
+oleasat-backend/
+├── docker-compose.yml      # Docker services + data volume
+├── Dockerfile              # Python 3.11-slim image
+├── requirements.txt        # Python dependencies
+├── .env                    # Environment variables (not in git)
+├── .env.example            # Template for .env
+└── app/
+    ├── main.py             # FastAPI app entry + OpenAPI metadata
+    ├── config.py           # Settings from environment variables
+    ├── routes.py           # API endpoints (7 routes)
+    ├── services.py         # Business logic (Satellite + Weather + FAO-56)
+    ├── schemas.py          # Pydantic request/response models
+    ├── models.py           # SQLAlchemy ORM models
+    └── database.py         # DB engine + session factory
+```
+
+---
+
+## Data Model
+
+### FarmerProfile
+
+| Column                   | Type            | Description                            |
+| ------------------------ | --------------- | -------------------------------------- |
+| `id`                     | UUID PK         | Internal identifier                    |
+| `telegram_chat_id`       | string (unique) | Telegram chat ID (for bot)             |
+| `state`                  | enum            | FSM state: UNREGISTERED → ... → ACTIVE |
+| `latitude` / `longitude` | float           | Parcel centroid                        |
+| `polygon_json`           | text            | GeoJSON polygon coordinates            |
+| `tree_age`               | enum            | YOUNG / ADULT                          |
+| `soil_type`              | enum            | SANDY / MEDIUM / CLAY                  |
+| `tree_count`             | integer         | Number of olive trees                  |
+| `spacing_m2`             | float           | Surface area per tree                  |
+| `farmer_name`            | string          | Farmer's name                          |
+| `phone`                  | string          | Phone number                           |
+| `language`               | enum            | FR / AR (default: FR)                  |
+| `created_at`             | timestamp       | Registration date                      |
+| `last_alert_at`          | timestamp       | Last alert sent                        |
+| `alert_failed`           | boolean         | True if last dispatch failed           |
+
+### AlertRecord (append-only)
+
+| Column            | Type      | Description                        |
+| ----------------- | --------- | ---------------------------------- |
+| `id`              | UUID PK   | Internal identifier                |
+| `farmer_id`       | UUID FK   | References FarmerProfile           |
+| `sent_at`         | timestamp | When the alert was created         |
+| `et0_weekly_mm`   | float     | ET₀ sum used in calculation        |
+| `rain_weekly_mm`  | float     | Total rainfall                     |
+| `kc_applied`      | float     | Final Kc after adjustments         |
+| `litres_per_tree` | float     | Recommended litres per tree        |
+| `total_litres`    | float     | Total recommended volume           |
+| `stress_mode`     | boolean   | Whether drought mode was triggered |
+| `delivery_status` | enum      | SENT / FAILED / RETRIED            |
