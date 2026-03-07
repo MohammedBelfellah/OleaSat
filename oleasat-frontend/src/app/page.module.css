@@ -1,0 +1,161 @@
+.page {
+  min-height: 100vh;
+  padding: 32px 20px;
+  background:
+    radial-gradient(circle at 5% 5%, rgba(109, 138, 79, 0.26), transparent 40%),
+    radial-gradient(
+      circle at 95% 15%,
+      rgba(255, 209, 145, 0.35),
+      transparent 45%
+    ),
+    linear-gradient(180deg, #f8f4e8 0%, #f2f1eb 100%);
+}
+
+.shell {
+  max-width: 880px;
+  margin: 0 auto;
+  display: grid;
+  gap: 20px;
+}
+
+.header h1 {
+  margin-top: 6px;
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  color: #1c2b17;
+}
+
+.kicker {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #385428;
+  background: #dce9cf;
+}
+
+.subtitle {
+  margin-top: 10px;
+  color: #4b5a4a;
+  max-width: 72ch;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #dbe2cf;
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 14px 30px rgba(40, 56, 30, 0.08);
+  display: grid;
+  gap: 14px;
+}
+
+.row {
+  display: grid;
+  gap: 8px;
+}
+
+.label {
+  font-weight: 700;
+  color: #253320;
+}
+
+.value {
+  font-size: 0.95rem;
+  color: #1e2a1b;
+  background: #f2f5ec;
+  border: 1px solid #dae5ca;
+  border-radius: 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+.badge {
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.idle {
+  background: #eceee8;
+  color: #4a5446;
+  border-color: #d9dfd1;
+}
+
+.loading {
+  background: #fff1d8;
+  color: #7d5a1f;
+  border-color: #f4d69f;
+}
+
+.ok {
+  background: #dbedd2;
+  color: #244a1a;
+  border-color: #bad8ad;
+}
+
+.error {
+  color: #9a2f20;
+  background: #fbe6e1;
+  border: 1px solid #f5bfb4;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.button {
+  width: fit-content;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #4f6f34 0%, #6b8c45 100%);
+  box-shadow: 0 6px 16px rgba(79, 111, 52, 0.3);
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.timestamp {
+  color: #556458;
+  font-size: 0.88rem;
+}
+
+.nextStep {
+  background: #ffffff;
+  border: 1px dashed #cfdabc;
+  border-radius: 16px;
+  padding: 18px;
+  color: #33412f;
+}
+
+.nextStep h2 {
+  font-size: 1.1rem;
+}
+
+.nextStep p {
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 14px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .button {
+    width: 100%;
+    text-align: center;
+  }
+}
