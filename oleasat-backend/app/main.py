@@ -75,11 +75,12 @@ litres/tree = IR × spacing_m² × soil_factor
 TAGS_METADATA = [
     {"name": "Health", "description": "System health and connectivity checks"},
     {"name": "Auth", "description": "Authentication — register, login, JWT tokens"},
-    {"name": "Farms", "description": "Farm registration and profile management"},
+    {"name": "Farms", "description": "Farm registration, listing, and management"},
     {"name": "Irrigation", "description": "FAO-56 irrigation calculation engine"},
     {"name": "Satellite", "description": "Sentinel-2 vegetation indices (NDVI / NDMI)"},
     {"name": "Telegram", "description": "Telegram bot deep-link and notifications"},
     {"name": "Metrics", "description": "Monitoring, statistics, and alert history"},
+    {"name": "Admin", "description": "Admin-only — dashboard insights, manage all farms, trigger jobs"},
 ]
 
 app = FastAPI(

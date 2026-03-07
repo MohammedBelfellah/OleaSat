@@ -107,3 +107,13 @@ def get_current_user(
         )
 
     return user
+
+
+def require_admin(user=Depends(get_current_user)):
+    """Dependency that enforces ADMIN role. Use on admin-only endpoints."""
+    if user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="admin_required",
+        )
+    return user

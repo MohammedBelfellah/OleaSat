@@ -5,10 +5,11 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user, hash_password, verify_password, create_access_token
+from app.auth import get_current_user, require_admin, hash_password, verify_password, create_access_token
 from app.database import get_db
 from app.models import AlertRecord, FarmerProfile, User
 from app.schemas import (
+    AdminDashboardResponse,
     AnalyzeRequest,
     AnalyzeResponse,
     AuthLoginRequest,
@@ -16,6 +17,8 @@ from app.schemas import (
     AuthTokenResponse,
     CalculateRequest,
     CalculateResponse,
+    FarmDetailResponse,
+    FarmListItem,
     FarmerOut,
     HealthResponse,
     MetricsFarmerResponse,
@@ -59,7 +62,7 @@ def auth_register(
     payload: AuthRegisterRequest,
     db: Session = Depends(get_db),
 ) -> AuthTokenResponse:
-    """Register a new web-app user (operator/admin).
+    """Register a new web-app user (farmer/admin).
 
     Returns a JWT access token so the frontend can immediately start
     making authenticated requests after sign-up.
@@ -140,7 +143,7 @@ def auth_me(user=Depends(get_current_user)) -> UserOut:
 def register_farm(
     payload: RegisterRequest,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    user=Depends(get_current_user),
 ) -> RegisterResponse:
     """Creates a new farmer profile in the database.
 
@@ -160,6 +163,7 @@ def register_farm(
 
     farmer = FarmerProfile(
         state="ACTIVE",
+        owner_id=user.id,
         farmer_name=payload.farmer_name,
         phone=payload.phone,
         crop_type=payload.crop_type,
@@ -402,13 +406,232 @@ def telegram_link(
     }
 
 
+# ---------- Farms (list / detail / delete) ----------
+
+def _farm_to_list_item(f: FarmerProfile) -> FarmListItem:
+    """Convert a FarmerProfile ORM object to a FarmListItem schema."""
+    return FarmListItem(
+        id=f.id,
+        farmer_name=f.farmer_name,
+        phone=f.phone,
+        state=f.state,
+        latitude=f.latitude,
+        longitude=f.longitude,
+        tree_age=f.tree_age,
+        soil_type=f.soil_type,
+        tree_count=f.tree_count,
+        spacing_m2=f.spacing_m2,
+        telegram_linked=f.telegram_chat_id is not None,
+        created_at=f.created_at.isoformat() if f.created_at else None,
+        last_alert_at=f.last_alert_at.isoformat() if f.last_alert_at else None,
+    )
+
+
+@router.get("/farms", response_model=list[FarmListItem], tags=["Farms"],
+            summary="List my farms (or all farms if ADMIN)")
+def list_farms(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> list[FarmListItem]:
+    """Returns the list of farms owned by the current user.
+
+    **ADMIN** users see ALL farms in the system.
+    **FARMER** users see only the farms they registered.
+    """
+    if user.role == "ADMIN":
+        farms = db.query(FarmerProfile).order_by(FarmerProfile.created_at.desc()).all()
+    else:
+        farms = (
+            db.query(FarmerProfile)
+            .filter(FarmerProfile.owner_id == user.id)
+            .order_by(FarmerProfile.created_at.desc())
+            .all()
+        )
+    return [_farm_to_list_item(f) for f in farms]
+
+
+@router.get("/farms/{farm_id}", response_model=FarmDetailResponse, tags=["Farms"],
+            summary="Get farm detail with last alert")
+def get_farm_detail(
+    farm_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> FarmDetailResponse:
+    """Returns full farm details plus the most recent alert record.
+
+    **ADMIN** can view any farm. **FARMER** can only view their own farms.
+    """
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farm_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    # Enforce ownership for non-admins
+    if user.role != "ADMIN" and farmer.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    last_alert = (
+        db.query(AlertRecord)
+        .filter(AlertRecord.farmer_id == farm_id)
+        .order_by(AlertRecord.sent_at.desc())
+        .first()
+    )
+
+    alert_dict = None
+    if last_alert:
+        alert_dict = {
+            "id": last_alert.id,
+            "sent_at": last_alert.sent_at.isoformat(),
+            "et0_weekly_mm": last_alert.et0_weekly_mm,
+            "rain_weekly_mm": last_alert.rain_weekly_mm,
+            "kc_applied": last_alert.kc_applied,
+            "litres_per_tree": last_alert.litres_per_tree,
+            "total_litres": last_alert.total_litres,
+            "stress_mode": last_alert.stress_mode,
+            "delivery_status": last_alert.delivery_status,
+        }
+
+    return FarmDetailResponse(
+        farm=_farm_to_list_item(farmer),
+        last_alert=alert_dict,
+    )
+
+
+@router.delete("/farms/{farm_id}", tags=["Farms"],
+               summary="Delete a farm and its alert history")
+def delete_farm(
+    farm_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> dict:
+    """Deletes a farm profile and all its alert records.
+
+    **ADMIN** can delete any farm. **FARMER** can only delete their own farms.
+    """
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farm_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if user.role != "ADMIN" and farmer.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    db.delete(farmer)  # cascade deletes alerts
+    db.commit()
+    logger.info("Deleted farm %s by user %s", farm_id, user.id)
+    return {"status": "ok", "message": f"Farm {farm_id} deleted"}
+
+
+# ---------- Admin Dashboard ----------
+
+@router.get("/admin/dashboard", response_model=AdminDashboardResponse, tags=["Admin"],
+            summary="Admin overview — global insights")
+def admin_dashboard(
+    db: Session = Depends(get_db),
+    user=Depends(require_admin),
+) -> AdminDashboardResponse:
+    """Returns a high-level overview of the entire system for the admin dashboard.
+
+    **Requires ADMIN role.**
+
+    Includes: totals, averages, stress count, urgent farms, recent alerts.
+    """
+    from sqlalchemy import func
+
+    total_farmers = db.query(FarmerProfile).count()
+    active_farmers = db.query(FarmerProfile).filter(FarmerProfile.state == "ACTIVE").count()
+    total_alerts = db.query(AlertRecord).count()
+
+    week_ago = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=7)
+    alerts_this_week = db.query(AlertRecord).filter(AlertRecord.sent_at >= week_ago).count()
+
+    farmers_with_telegram = db.query(FarmerProfile).filter(
+        FarmerProfile.telegram_chat_id.isnot(None)
+    ).count()
+
+    avg_litres = db.query(func.avg(AlertRecord.litres_per_tree)).scalar() or 0.0
+    total_water = db.query(func.sum(AlertRecord.total_litres)).scalar() or 0.0
+    stress_count = db.query(AlertRecord).filter(AlertRecord.stress_mode.is_(True)).count()
+
+    # Urgent farms = most recent alert has high litres (>= 25) or stress
+    # Get latest alert per farmer using a subquery
+    from sqlalchemy import desc
+    latest_alerts = (
+        db.query(AlertRecord)
+        .order_by(AlertRecord.sent_at.desc())
+        .all()
+    )
+    seen_farmers = set()
+    urgent_farm_ids = []
+    for a in latest_alerts:
+        if a.farmer_id not in seen_farmers:
+            seen_farmers.add(a.farmer_id)
+            if a.stress_mode or a.litres_per_tree >= 25:
+                urgent_farm_ids.append(a.farmer_id)
+
+    urgent_farms = []
+    if urgent_farm_ids:
+        urgent_profiles = db.query(FarmerProfile).filter(
+            FarmerProfile.id.in_(urgent_farm_ids)
+        ).all()
+        urgent_farms = [_farm_to_list_item(f) for f in urgent_profiles]
+
+    # Recent alerts (last 10)
+    recent = (
+        db.query(AlertRecord)
+        .order_by(AlertRecord.sent_at.desc())
+        .limit(10)
+        .all()
+    )
+    recent_alerts = []
+    for a in recent:
+        farmer = db.query(FarmerProfile).filter(FarmerProfile.id == a.farmer_id).first()
+        recent_alerts.append({
+            "id": a.id,
+            "farmer_id": a.farmer_id,
+            "farmer_name": farmer.farmer_name if farmer else "Unknown",
+            "sent_at": a.sent_at.isoformat(),
+            "litres_per_tree": a.litres_per_tree,
+            "total_litres": a.total_litres,
+            "stress_mode": a.stress_mode,
+            "delivery_status": a.delivery_status,
+        })
+
+    return AdminDashboardResponse(
+        total_farmers=total_farmers,
+        active_farmers=active_farmers,
+        total_alerts=total_alerts,
+        alerts_this_week=alerts_this_week,
+        farmers_with_telegram=farmers_with_telegram,
+        avg_litres_per_tree=round(float(avg_litres), 2),
+        total_water_m3=round(float(total_water) / 1000, 2),
+        stress_alerts_count=stress_count,
+        urgent_farms=urgent_farms,
+        recent_alerts=recent_alerts,
+    )
+
+
+@router.get("/admin/farmers", response_model=list[FarmListItem], tags=["Admin"],
+            summary="List all farmers in the system")
+def admin_list_all_farmers(
+    db: Session = Depends(get_db),
+    user=Depends(require_admin),
+) -> list[FarmListItem]:
+    """Returns every farmer profile in the system.
+
+    **Requires ADMIN role.**
+    """
+    farms = db.query(FarmerProfile).order_by(FarmerProfile.created_at.desc()).all()
+    return [_farm_to_list_item(f) for f in farms]
+
+
 # ---------- Manual trigger (admin / testing) ----------
 
-@router.post("/admin/trigger-weekly", tags=["Metrics"],
+@router.post("/admin/trigger-weekly", tags=["Admin"],
              summary="Manually trigger the weekly irrigation job")
-async def trigger_weekly(_user=Depends(get_current_user)) -> dict:
+async def trigger_weekly(user=Depends(require_admin)) -> dict:
     """Manually runs the weekly scheduler job for all active farmers
     with a linked Telegram account. Useful for testing and demos.
+
+    **Requires ADMIN role.**
     """
     from app.scheduler import trigger_manual_run
     return await trigger_manual_run()

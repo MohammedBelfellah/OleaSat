@@ -42,7 +42,7 @@ class AuthTokenResponse(BaseModel):
     user_id: str
     email: str
     full_name: Optional[str] = None
-    role: str = "OPERATOR"
+    role: str = "FARMER"
 
 
 class UserOut(BaseModel):
@@ -197,3 +197,42 @@ class MetricsFarmerResponse(BaseModel):
     """Spec §5.3 — GET /metrics/farmer/{id}."""
     farmer: FarmerOut
     alerts: List[Dict[str, Any]]
+
+
+# ---------- Admin Dashboard ----------
+
+class FarmListItem(BaseModel):
+    """Compact farm view for list endpoints."""
+    id: str
+    farmer_name: Optional[str] = None
+    phone: Optional[str] = None
+    state: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    tree_age: Optional[str] = None
+    soil_type: Optional[str] = None
+    tree_count: Optional[int] = None
+    spacing_m2: Optional[float] = None
+    telegram_linked: bool = False
+    created_at: Optional[str] = None
+    last_alert_at: Optional[str] = None
+
+
+class FarmDetailResponse(BaseModel):
+    """Full farm detail with last calculation."""
+    farm: FarmListItem
+    last_alert: Optional[Dict[str, Any]] = None
+
+
+class AdminDashboardResponse(BaseModel):
+    """Admin overview with global insights."""
+    total_farmers: int
+    active_farmers: int
+    total_alerts: int
+    alerts_this_week: int
+    farmers_with_telegram: int
+    avg_litres_per_tree: float
+    total_water_m3: float
+    stress_alerts_count: int
+    urgent_farms: List[FarmListItem]
+    recent_alerts: List[Dict[str, Any]]

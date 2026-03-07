@@ -206,7 +206,7 @@ Create a new web-app user account. Returns a JWT so the frontend can immediately
   "user_id": "7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
   "email": "admin@oleasat.ma",
   "full_name": "Admin OleaSat",
-  "role": "OPERATOR"
+  "role": "FARMER"
 }
 ```
 
@@ -242,7 +242,7 @@ Create a new web-app user account. Returns a JWT so the frontend can immediately
   "user_id": "7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
   "email": "admin@oleasat.ma",
   "full_name": "Admin OleaSat",
-  "role": "OPERATOR"
+  "role": "FARMER"
 }
 ```
 
@@ -270,7 +270,7 @@ Returns the authenticated user's profile.
   "id": "7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
   "email": "admin@oleasat.ma",
   "full_name": "Admin OleaSat",
-  "role": "OPERATOR",
+  "role": "FARMER",
   "is_active": true,
   "created_at": "2026-03-07T01:04:16.079200"
 }
@@ -754,7 +754,7 @@ oleasat-backend/
 | `email`           | string (unique) | Login email              |
 | `hashed_password` | string          | bcrypt hash              |
 | `full_name`       | string          | Display name             |
-| `role`            | enum            | `ADMIN` or `OPERATOR`    |
+| `role`            | enum            | `ADMIN` or `FARMER`      |
 | `is_active`       | boolean         | Account enabled/disabled |
 | `created_at`      | timestamp       | Registration date        |
 

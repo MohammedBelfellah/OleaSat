@@ -22,7 +22,7 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
-    """Web app user account (admin / operator)."""
+    """Web app user account (admin / farmer)."""
 
     __tablename__ = "users"
 
@@ -32,9 +32,9 @@ class User(Base):
     full_name = Column(String(100), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     role = Column(
-        Enum("ADMIN", "OPERATOR", name="user_role_enum"),
+        Enum("ADMIN", "FARMER", name="user_role_enum"),
         nullable=False,
-        default="OPERATOR",
+        default="FARMER",
     )
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
@@ -62,6 +62,9 @@ class FarmerProfile(Base):
         nullable=False,
         default="UNREGISTERED",
     )
+
+    # Owner (web-app user who registered this farm)
+    owner_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
 
     # Parcel location
     latitude = Column(Float, nullable=True)
