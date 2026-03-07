@@ -27,6 +27,8 @@ from app.schemas import (
     RegisterResponse,
     SatelliteIndicesRequest,
     SatelliteIndicesResponse,
+    StatusMessageResponse,
+    TelegramLinkResponse,
     WaterStressMapResponse,
     UserOut,
 )
@@ -427,13 +429,13 @@ def metrics_farmer(
 
 # ---------- Telegram deep-link ----------
 
-@router.get("/telegram-link/{farmer_id}", tags=["Telegram"],
+@router.get("/telegram-link/{farmer_id}", response_model=TelegramLinkResponse, tags=["Telegram"],
             summary="Generate Telegram deep-link for a farmer")
 def telegram_link(
     farmer_id: str,
     db: Session = Depends(get_db),
     _user=Depends(get_current_user),
-) -> dict:
+) -> TelegramLinkResponse:
     """Returns a `https://t.me/OleaSat_bot?start={farmer_id}` deep-link URL.
 
     The farmer opens this link on their phone → Telegram opens → the bot
@@ -446,11 +448,11 @@ def telegram_link(
         raise HTTPException(status_code=404, detail="farmer_not_found")
 
     link = f"https://t.me/OleaSat_bot?start={farmer_id}"
-    return {
-        "farmer_id": farmer_id,
-        "telegram_link": link,
-        "linked": farmer.telegram_chat_id is not None,
-    }
+    return TelegramLinkResponse(
+        farmer_id=farmer_id,
+        telegram_link=link,
+        linked=farmer.telegram_chat_id is not None,
+    )
 
 
 # ---------- Farms (list / detail / delete) ----------
@@ -543,13 +545,13 @@ def get_farm_detail(
     )
 
 
-@router.delete("/farms/{farm_id}", tags=["Farms"],
+@router.delete("/farms/{farm_id}", response_model=StatusMessageResponse, tags=["Farms"],
                summary="Delete a farm and its alert history")
 def delete_farm(
     farm_id: str,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
-) -> dict:
+) -> StatusMessageResponse:
     """Deletes a farm profile and all its alert records.
 
     **ADMIN** can delete any farm. **FARMER** can only delete their own farms.
@@ -564,7 +566,7 @@ def delete_farm(
     db.delete(farmer)  # cascade deletes alerts
     db.commit()
     logger.info("Deleted farm %s by user %s", farm_id, user.id)
-    return {"status": "ok", "message": f"Farm {farm_id} deleted"}
+    return StatusMessageResponse(status="ok", message=f"Farm {farm_id} deleted")
 
 
 # ---------- Admin Dashboard ----------
@@ -672,13 +674,14 @@ def admin_list_all_farmers(
 
 # ---------- Manual trigger (admin / testing) ----------
 
-@router.post("/admin/trigger-weekly", tags=["Admin"],
+@router.post("/admin/trigger-weekly", response_model=StatusMessageResponse, tags=["Admin"],
              summary="Manually trigger the weekly irrigation job")
-async def trigger_weekly(user=Depends(require_admin)) -> dict:
+async def trigger_weekly(user=Depends(require_admin)) -> StatusMessageResponse:
     """Manually runs the weekly scheduler job for all active farmers
     with a linked Telegram account. Useful for testing and demos.
 
     **Requires ADMIN role.**
     """
     from app.scheduler import trigger_manual_run
-    return await trigger_manual_run()
+    result = await trigger_manual_run()
+    return StatusMessageResponse(**result)

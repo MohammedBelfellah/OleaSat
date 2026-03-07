@@ -50,14 +50,16 @@ DESCRIPTION = """
 
 Irrigation advisory system for Moroccan olive orchards.
 Combines **real-time weather data** (Open-Meteo), **satellite vegetation indices**
-(Sentinel Hub), and the **FAO-56 Penman-Monteith** crop water model to generate
-personalised weekly irrigation recommendations.
+(Sentinel Hub), **spatial water-stress maps**, and the **FAO-56 Penman-Monteith**
+crop water model to generate personalised weekly irrigation recommendations.
 
 ## How it works
 
 1. **Register** a farm with location, tree age, soil type, and tree count
-2. **Calculate** irrigation needs — the system fetches weather + satellite data automatically
-3. **Monitor** via metrics endpoints for dashboards
+2. **Calculate** irrigation needs — weather + satellite data fetched automatically
+3. **Visualize** water stress zones via per-cell map endpoint
+4. **Receive** weekly Telegram alerts in French or Darija (AI-personalized)
+5. **Monitor** via farmer and admin metrics endpoints
 
 ## Core Formula (FAO-56)
 
@@ -85,7 +87,7 @@ TAGS_METADATA = [
 
 app = FastAPI(
     title="OleaBot API",
-    version="1.0.0",
+    version="1.1.0",
     description=DESCRIPTION,
     openapi_tags=TAGS_METADATA,
     contact={"name": "OleaBot Team"},

@@ -70,6 +70,17 @@ class RegisterResponse(BaseModel):
     message: str
 
 
+class TelegramLinkResponse(BaseModel):
+    farmer_id: str
+    telegram_link: str
+    linked: bool
+
+
+class StatusMessageResponse(BaseModel):
+    status: str
+    message: str
+
+
 class CalculateRequest(BaseModel):
     """Spec §5.2 — calculate by farmer_id (profile looked up from DB)."""
     farmer_id: str
