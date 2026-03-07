@@ -2,11 +2,12 @@
 
 Frontend client for the OleaSat backend (`/api/v1/*`).
 
-## Implemented Scope (Step 1 + Step 3)
+## Implemented Scope (Step 1 + Step 4)
 
 - Step 1: frontend-backend connectivity check with `GET /health`
 - Step 2: authentication flow pages using backend auth endpoints
 - Step 3: farm registration flow using authenticated backend endpoint
+- Step 4: dashboard with metrics and farm insights
 
 Implemented auth routes:
 
@@ -19,6 +20,10 @@ The access token is stored in browser `localStorage`.
 Implemented farm route:
 
 - `/farms/new` -> `POST /register` (requires bearer token)
+
+Implemented dashboard route:
+
+- `/dashboard` -> reads `GET /metrics/summary`, `GET /farms`, and `GET /farms/{id}`
 
 ## Prerequisites
 
@@ -53,11 +58,12 @@ Open `http://localhost:3000`.
 - `src/app/auth/login/page.tsx`: login UI
 - `src/app/auth/me/page.tsx`: protected profile check
 - `src/app/farms/new/page.tsx`: farm registration form + polygon input
+- `src/app/dashboard/page.tsx`: data-driven dashboard view
 
 ## Next Incremental Step
 
-Build farm management and analysis flow against:
+Build map drawing and analysis panels against:
 
-- `GET /farms`
-- `GET /farms/{farm_id}`
+- map polygon editor (Leaflet/Google Maps)
 - `POST /calculate`
+- `GET /farms/{farm_id}/water-map`

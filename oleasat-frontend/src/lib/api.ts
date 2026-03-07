@@ -52,6 +52,50 @@ export type RegisterFarmResponse = {
   message: string;
 };
 
+export type MetricsSummaryResponse = {
+  farmers_active: number;
+  alerts_sent_this_week: number;
+  avg_litres_per_tree: number;
+};
+
+export type FarmListItem = {
+  id: string;
+  farmer_name?: string | null;
+  phone?: string | null;
+  state?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  tree_age?: string | null;
+  soil_type?: string | null;
+  tree_count?: number | null;
+  spacing_m2?: number | null;
+  irrigation_efficiency?: number | null;
+  telegram_linked: boolean;
+  created_at?: string | null;
+  last_alert_at?: string | null;
+};
+
+export type AlertSnapshot = {
+  id: string;
+  sent_at: string;
+  et0_weekly_mm: number;
+  rain_weekly_mm: number;
+  kc_applied: number;
+  litres_per_tree: number;
+  total_litres: number;
+  stress_mode: boolean;
+  ndvi_current?: number | null;
+  ndvi_delta?: number | null;
+  ndmi_current?: number | null;
+  irrigation_efficiency?: number | null;
+  delivery_status: string;
+};
+
+export type FarmDetailResponse = {
+  farm: FarmListItem;
+  last_alert?: AlertSnapshot | null;
+};
+
 type ApiErrorPayload = {
   detail?: unknown;
 };
@@ -105,7 +149,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse>
   if (!response.ok) {
     throw await asApiError(response);
   }
-
+  
   return (await response.json()) as HealthResponse;
 }
 
@@ -186,4 +230,65 @@ export async function registerFarm(
   }
 
   return (await response.json()) as RegisterFarmResponse;
+}
+
+export async function fetchMetricsSummary(
+  token: string,
+  signal?: AbortSignal,
+): Promise<MetricsSummaryResponse> {
+  const response = await fetch(`${API_BASE_URL}/metrics/summary`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as MetricsSummaryResponse;
+}
+
+export async function fetchFarms(token: string, signal?: AbortSignal): Promise<FarmListItem[]> {
+  const response = await fetch(`${API_BASE_URL}/farms`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as FarmListItem[];
+}
+
+export async function fetchFarmDetail(
+  token: string,
+  farmId: string,
+  signal?: AbortSignal,
+): Promise<FarmDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/farms/${farmId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as FarmDetailResponse;
 }

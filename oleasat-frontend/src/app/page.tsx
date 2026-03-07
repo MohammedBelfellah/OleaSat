@@ -102,6 +102,9 @@ export default function Home() {
           <h2>Step 3: Farm registration</h2>
           <p>After authentication, create your first farm profile:</p>
           <div className={styles.linkRow}>
+            <Link className={styles.linkPill} href="/dashboard">
+              Dashboard
+            </Link>
             <Link className={styles.linkPill} href="/farms/new">
               Register farm (/register)
             </Link>
