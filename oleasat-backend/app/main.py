@@ -1,4 +1,6 @@
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -6,11 +8,42 @@ from app.database import engine
 from app.models import Base
 from app.routes import router
 
+# Configure logging so bot/scheduler messages are visible
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 # Ensure data directory exists for SQLite
 os.makedirs("data", exist_ok=True)
 
 # Create all tables on startup
 Base.metadata.create_all(bind=engine)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Startup: launch Telegram bot + scheduler.  Shutdown: stop both."""
+    # --- Startup ---
+    from app.bot import start_bot, stop_bot
+    from app.scheduler import start_scheduler, stop_scheduler
+
+    try:
+        await start_bot()
+    except Exception as exc:
+        logger.warning("Telegram bot failed to start: %s", exc)
+
+    try:
+        start_scheduler()
+    except Exception as exc:
+        logger.warning("Scheduler failed to start: %s", exc)
+
+    yield
+
+    # --- Shutdown ---
+    stop_scheduler()
+    await stop_bot()
 
 DESCRIPTION = """
 # OleaBot / OleaSat Backend API
@@ -44,6 +77,7 @@ TAGS_METADATA = [
     {"name": "Farms", "description": "Farm registration and profile management"},
     {"name": "Irrigation", "description": "FAO-56 irrigation calculation engine"},
     {"name": "Satellite", "description": "Sentinel-2 vegetation indices (NDVI / NDMI)"},
+    {"name": "Telegram", "description": "Telegram bot deep-link and notifications"},
     {"name": "Metrics", "description": "Monitoring, statistics, and alert history"},
 ]
 
@@ -54,5 +88,6 @@ app = FastAPI(
     openapi_tags=TAGS_METADATA,
     contact={"name": "OleaBot Team"},
     license_info={"name": "Confidential — Hackathon MVP"},
+    lifespan=lifespan,
 )
 app.include_router(router, prefix="/api/v1")

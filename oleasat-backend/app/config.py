@@ -17,6 +17,7 @@ class Settings:
     sh_client_secret: str | None = os.getenv("SH_CLIENT_SECRET")
     sh_base_url: str = os.getenv("SH_BASE_URL", "https://services.sentinel-hub.com")
     sh_token_url: str = os.getenv("SH_TOKEN_URL", "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token")
+    telegram_bot_token: str | None = os.getenv("TELEGRAM_BOT_TOKEN")
 
 
 settings = Settings()

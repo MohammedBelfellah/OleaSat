@@ -283,3 +283,42 @@ def metrics_farmer(
             for a in alerts
         ],
     )
+
+
+# ---------- Telegram deep-link ----------
+
+@router.get("/telegram-link/{farmer_id}", tags=["Telegram"],
+            summary="Generate Telegram deep-link for a farmer")
+def telegram_link(
+    farmer_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Returns a `https://t.me/OleaSat_bot?start={farmer_id}` deep-link URL.
+
+    The farmer opens this link on their phone → Telegram opens → the bot
+    receives `/start {farmer_id}` → binds the chat to the farmer profile.
+
+    Returns `404` if the farmer_id doesn't exist.
+    """
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farmer_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    link = f"https://t.me/OleaSat_bot?start={farmer_id}"
+    return {
+        "farmer_id": farmer_id,
+        "telegram_link": link,
+        "linked": farmer.telegram_chat_id is not None,
+    }
+
+
+# ---------- Manual trigger (admin / testing) ----------
+
+@router.post("/admin/trigger-weekly", tags=["Metrics"],
+             summary="Manually trigger the weekly irrigation job")
+async def trigger_weekly() -> dict:
+    """Manually runs the weekly scheduler job for all active farmers
+    with a linked Telegram account. Useful for testing and demos.
+    """
+    from app.scheduler import trigger_manual_run
+    return await trigger_manual_run()
