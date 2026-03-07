@@ -171,6 +171,43 @@ class SatelliteIndicesResponse(BaseModel):
     window_end: str
 
 
+class WaterStressMapCell(BaseModel):
+    id: str
+    polygon: List[List[float]]
+    centroid: List[float]
+    ndmi: float
+    ndvi: float
+    stress_score: float = Field(ge=0, le=1)
+    stress_level: str
+    water_priority: str
+    irrigation_factor: float
+
+
+class WaterStressSummary(BaseModel):
+    cells_total: int
+    cells_in_polygon: int
+    high_stress_cells: int
+    medium_stress_cells: int
+    low_stress_cells: int
+    avg_ndmi: float
+    avg_ndvi: float
+    avg_stress_score: float
+
+
+class WaterStressMapResponse(BaseModel):
+    farm_id: str
+    source: str
+    note: Optional[str] = None
+    window_start: str
+    window_end: str
+    max_cloud_pct: float
+    grid_width: int
+    grid_height: int
+    legend: Dict[str, str]
+    summary: WaterStressSummary
+    cells: List[WaterStressMapCell]
+
+
 # ---------- Metrics (Spec §5.3) ----------
 
 class FarmerOut(BaseModel):

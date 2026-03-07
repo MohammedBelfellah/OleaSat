@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
@@ -149,6 +150,37 @@ function evaluatePixel(samples) {
 }
 """
 
+NDMI_MAP_EVALSCRIPT = """
+//VERSION=3
+function setup() {
+    return {
+        input: [{
+            bands: ["B04", "B08", "B11", "SCL", "dataMask"],
+            units: "DN"
+        }],
+        output: {
+            bands: 3,
+            sampleType: "FLOAT32"
+        }
+    };
+}
+
+function evaluatePixel(samples) {
+    // Mask noData + cloud + cloud shadow + water + snow
+    let dominated = [0, 1, 3, 6, 8, 9, 10];
+    let valid = samples.dataMask && !dominated.includes(samples.SCL) ? 1 : 0;
+
+    if (valid === 0) {
+        return [0, 0, 0];
+    }
+
+    let ndmi = (samples.B08 - samples.B11) / (samples.B08 + samples.B11 + 1e-10);
+    let ndvi = (samples.B08 - samples.B04) / (samples.B08 + samples.B04 + 1e-10);
+
+    return [ndmi, ndvi, 1];
+}
+"""
+
 
 def get_satellite_features(
     polygon: List[List[float]],
@@ -263,6 +295,367 @@ def get_satellite_features(
         return _mock_satellite_features(
             ring, start_date, end_date,
             f"Sentinel Hub query failed: {str(exc)}",
+        )
+
+
+def _stress_from_ndmi(ndmi: float) -> Dict[str, Any]:
+    """Convert NDMI into a stress level and irrigation multiplier."""
+    if ndmi < 0.05:
+        level = "HIGH"
+        factor = 1.25
+    elif ndmi < 0.18:
+        level = "MEDIUM"
+        factor = 1.10
+    else:
+        level = "LOW"
+        factor = 0.90
+
+    score = max(0.0, min(1.0, (0.25 - ndmi) / 0.5))
+    return {
+        "stress_level": level,
+        "water_priority": level,
+        "irrigation_factor": factor,
+        "stress_score": round(score, 4),
+    }
+
+
+def _grid_size_from_bbox(min_lon: float, min_lat: float, max_lon: float, max_lat: float, grid_size: int) -> tuple[int, int]:
+    """Compute raster width/height preserving bbox aspect ratio."""
+    lon_span = max(max_lon - min_lon, 1e-6)
+    lat_span = max(max_lat - min_lat, 1e-6)
+
+    if lon_span >= lat_span:
+        width = grid_size
+        height = max(6, int(round(grid_size * (lat_span / lon_span))))
+    else:
+        height = grid_size
+        width = max(6, int(round(grid_size * (lon_span / lat_span))))
+
+    return width, height
+
+
+def _mock_water_stress_map(
+    polygon: List[List[float]],
+    start_date: str,
+    end_date: str,
+    max_cloud_pct: float,
+    grid_size: int,
+    note: str,
+) -> Dict[str, Any]:
+    """Deterministic mock spatial map used when Sentinel Hub is unavailable."""
+    ring = _ensure_closed_ring(polygon)
+    lons = [p[0] for p in ring]
+    lats = [p[1] for p in ring]
+    min_lon, max_lon = min(lons), max(lons)
+    min_lat, max_lat = min(lats), max(lats)
+
+    width, height = _grid_size_from_bbox(min_lon, min_lat, max_lon, max_lat, grid_size)
+
+    try:
+        from shapely.geometry import Point, Polygon as ShapelyPolygon
+
+        poly = ShapelyPolygon(ring)
+        lon_step = (max_lon - min_lon) / width
+        lat_step = (max_lat - min_lat) / height
+
+        cells: List[Dict[str, Any]] = []
+        for row in range(height):
+            for col in range(width):
+                cx = min_lon + (col + 0.5) * lon_step
+                cy = max_lat - (row + 0.5) * lat_step
+
+                if not poly.covers(Point(cx, cy)):
+                    continue
+
+                digest = hashlib.sha256(f"{start_date}|{end_date}|{row}|{col}|{cx:.6f}|{cy:.6f}".encode("utf-8")).hexdigest()
+                seed = int(digest[:8], 16)
+
+                ndmi = -0.12 + (seed % 6200) / 10000
+                ndvi = max(min(ndmi + 0.26, 0.85), 0.1)
+                stress = _stress_from_ndmi(ndmi)
+
+                x0 = min_lon + col * lon_step
+                x1 = x0 + lon_step
+                y1 = max_lat - row * lat_step
+                y0 = y1 - lat_step
+
+                cells.append({
+                    "id": f"r{row}_c{col}",
+                    "polygon": [
+                        [round(x0, 6), round(y0, 6)],
+                        [round(x1, 6), round(y0, 6)],
+                        [round(x1, 6), round(y1, 6)],
+                        [round(x0, 6), round(y1, 6)],
+                        [round(x0, 6), round(y0, 6)],
+                    ],
+                    "centroid": [round(cx, 6), round(cy, 6)],
+                    "ndmi": round(float(ndmi), 4),
+                    "ndvi": round(float(ndvi), 4),
+                    **stress,
+                })
+
+        if not cells:
+            return {
+                "source": "mock",
+                "note": f"No valid in-polygon cells. {note}",
+                "window_start": start_date,
+                "window_end": end_date,
+                "max_cloud_pct": round(float(max_cloud_pct), 2),
+                "grid_width": width,
+                "grid_height": height,
+                "legend": {
+                    "HIGH": "Red = high water stress, irrigate first",
+                    "MEDIUM": "Orange = medium stress",
+                    "LOW": "Green = low stress",
+                },
+                "summary": {
+                    "cells_total": width * height,
+                    "cells_in_polygon": 0,
+                    "high_stress_cells": 0,
+                    "medium_stress_cells": 0,
+                    "low_stress_cells": 0,
+                    "avg_ndmi": 0.0,
+                    "avg_ndvi": 0.0,
+                    "avg_stress_score": 0.0,
+                },
+                "cells": [],
+            }
+
+        high = sum(1 for c in cells if c["stress_level"] == "HIGH")
+        medium = sum(1 for c in cells if c["stress_level"] == "MEDIUM")
+        low = sum(1 for c in cells if c["stress_level"] == "LOW")
+
+        avg_ndmi = sum(c["ndmi"] for c in cells) / len(cells)
+        avg_ndvi = sum(c["ndvi"] for c in cells) / len(cells)
+        avg_stress = sum(c["stress_score"] for c in cells) / len(cells)
+
+        return {
+            "source": "mock",
+            "note": note,
+            "window_start": start_date,
+            "window_end": end_date,
+            "max_cloud_pct": round(float(max_cloud_pct), 2),
+            "grid_width": width,
+            "grid_height": height,
+            "legend": {
+                "HIGH": "Red = high water stress, irrigate first",
+                "MEDIUM": "Orange = medium stress",
+                "LOW": "Green = low stress",
+            },
+            "summary": {
+                "cells_total": width * height,
+                "cells_in_polygon": len(cells),
+                "high_stress_cells": high,
+                "medium_stress_cells": medium,
+                "low_stress_cells": low,
+                "avg_ndmi": round(avg_ndmi, 4),
+                "avg_ndvi": round(avg_ndvi, 4),
+                "avg_stress_score": round(avg_stress, 4),
+            },
+            "cells": cells,
+        }
+    except Exception as exc:
+        logger.warning("Mock water stress map failed: %s", exc)
+        return {
+            "source": "mock",
+            "note": f"Mock map failed: {exc}",
+            "window_start": start_date,
+            "window_end": end_date,
+            "max_cloud_pct": round(float(max_cloud_pct), 2),
+            "grid_width": 0,
+            "grid_height": 0,
+            "legend": {
+                "HIGH": "Red = high water stress, irrigate first",
+                "MEDIUM": "Orange = medium stress",
+                "LOW": "Green = low stress",
+            },
+            "summary": {
+                "cells_total": 0,
+                "cells_in_polygon": 0,
+                "high_stress_cells": 0,
+                "medium_stress_cells": 0,
+                "low_stress_cells": 0,
+                "avg_ndmi": 0.0,
+                "avg_ndvi": 0.0,
+                "avg_stress_score": 0.0,
+            },
+            "cells": [],
+        }
+
+
+def get_water_stress_map(
+    polygon: List[List[float]],
+    start_date: str | None = None,
+    end_date: str | None = None,
+    max_cloud_pct: float = 20,
+    grid_size: int = 20,
+) -> Dict[str, Any]:
+    """Return a spatial NDMI/NDVI stress map over the farm area.
+
+    Output is designed for frontend map rendering (Leaflet/Mapbox) with
+    per-cell polygons and stress classes.
+    """
+    resolved_start, resolved_end = _default_dates()
+    start_date = start_date or resolved_start
+    end_date = end_date or resolved_end
+    grid_size = max(8, min(40, int(grid_size)))
+
+    ring = _ensure_closed_ring(polygon)
+    lons = [p[0] for p in ring]
+    lats = [p[1] for p in ring]
+    min_lon, max_lon = min(lons), max(lons)
+    min_lat, max_lat = min(lats), max(lats)
+    width, height = _grid_size_from_bbox(min_lon, min_lat, max_lon, max_lat, grid_size)
+
+    sh_config, data_collection = _get_sh_config()
+    if sh_config is None:
+        return _mock_water_stress_map(
+            ring,
+            start_date,
+            end_date,
+            max_cloud_pct,
+            grid_size,
+            "Sentinel Hub not configured; returning deterministic mock map",
+        )
+
+    try:
+        from shapely.geometry import Point, Polygon as ShapelyPolygon
+        from sentinelhub import BBox, CRS, MimeType, SentinelHubRequest
+
+        poly = ShapelyPolygon(ring)
+        bbox = BBox(bbox=[min_lon, min_lat, max_lon, max_lat], crs=CRS.WGS84)
+
+        request = SentinelHubRequest(
+            evalscript=NDMI_MAP_EVALSCRIPT,
+            input_data=[
+                SentinelHubRequest.input_data(
+                    data_collection=data_collection,
+                    time_interval=(start_date, end_date),
+                    maxcc=max_cloud_pct / 100,
+                )
+            ],
+            responses=[SentinelHubRequest.output_response("default", MimeType.TIFF)],
+            bbox=bbox,
+            size=(width, height),
+            config=sh_config,
+        )
+
+        image = request.get_data()[0]
+
+        if image is None or len(image) == 0:
+            return _mock_water_stress_map(
+                ring,
+                start_date,
+                end_date,
+                max_cloud_pct,
+                grid_size,
+                "Sentinel Hub returned empty image",
+            )
+
+        h = len(image)
+        w = len(image[0]) if h else 0
+        if h == 0 or w == 0:
+            return _mock_water_stress_map(
+                ring,
+                start_date,
+                end_date,
+                max_cloud_pct,
+                grid_size,
+                "Sentinel Hub returned invalid image dimensions",
+            )
+
+        lon_step = (max_lon - min_lon) / w
+        lat_step = (max_lat - min_lat) / h
+
+        cells: List[Dict[str, Any]] = []
+        for row in range(h):
+            for col in range(w):
+                pixel = image[row][col]
+                ndmi = float(pixel[0])
+                ndvi = float(pixel[1])
+                mask = float(pixel[2])
+
+                if mask < 0.5 or math.isnan(ndmi) or math.isnan(ndvi):
+                    continue
+
+                cx = min_lon + (col + 0.5) * lon_step
+                cy = max_lat - (row + 0.5) * lat_step
+                if not poly.covers(Point(cx, cy)):
+                    continue
+
+                x0 = min_lon + col * lon_step
+                x1 = x0 + lon_step
+                y1 = max_lat - row * lat_step
+                y0 = y1 - lat_step
+
+                stress = _stress_from_ndmi(ndmi)
+
+                cells.append({
+                    "id": f"r{row}_c{col}",
+                    "polygon": [
+                        [round(x0, 6), round(y0, 6)],
+                        [round(x1, 6), round(y0, 6)],
+                        [round(x1, 6), round(y1, 6)],
+                        [round(x0, 6), round(y1, 6)],
+                        [round(x0, 6), round(y0, 6)],
+                    ],
+                    "centroid": [round(cx, 6), round(cy, 6)],
+                    "ndmi": round(ndmi, 4),
+                    "ndvi": round(ndvi, 4),
+                    **stress,
+                })
+
+        if not cells:
+            return _mock_water_stress_map(
+                ring,
+                start_date,
+                end_date,
+                max_cloud_pct,
+                grid_size,
+                "No valid pixels after masking clouds and clipping polygon",
+            )
+
+        high = sum(1 for c in cells if c["stress_level"] == "HIGH")
+        medium = sum(1 for c in cells if c["stress_level"] == "MEDIUM")
+        low = sum(1 for c in cells if c["stress_level"] == "LOW")
+        avg_ndmi = sum(c["ndmi"] for c in cells) / len(cells)
+        avg_ndvi = sum(c["ndvi"] for c in cells) / len(cells)
+        avg_stress = sum(c["stress_score"] for c in cells) / len(cells)
+
+        return {
+            "source": "sentinel_hub",
+            "note": None,
+            "window_start": start_date,
+            "window_end": end_date,
+            "max_cloud_pct": round(float(max_cloud_pct), 2),
+            "grid_width": w,
+            "grid_height": h,
+            "legend": {
+                "HIGH": "Red = high water stress, irrigate first",
+                "MEDIUM": "Orange = medium stress",
+                "LOW": "Green = low stress",
+            },
+            "summary": {
+                "cells_total": w * h,
+                "cells_in_polygon": len(cells),
+                "high_stress_cells": high,
+                "medium_stress_cells": medium,
+                "low_stress_cells": low,
+                "avg_ndmi": round(avg_ndmi, 4),
+                "avg_ndvi": round(avg_ndvi, 4),
+                "avg_stress_score": round(avg_stress, 4),
+            },
+            "cells": cells,
+        }
+    except Exception as exc:
+        logger.error("Water stress map query failed: %s", exc)
+        return _mock_water_stress_map(
+            ring,
+            start_date,
+            end_date,
+            max_cloud_pct,
+            grid_size,
+            f"Sentinel Hub map query failed: {exc}",
         )
 
 

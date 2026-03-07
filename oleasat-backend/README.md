@@ -23,10 +23,11 @@
   - [Calculate Irrigation](#6-calculate-irrigation)
   - [Analyze (Direct)](#7-analyze-direct)
   - [Satellite Indices](#8-satellite-indices)
-  - [Telegram Deep-Link](#9-telegram-deep-link)
-  - [Metrics Summary](#10-metrics-summary)
-  - [Metrics Farmer History](#11-metrics-farmer-history)
-  - [Admin Trigger Weekly](#12-admin-trigger-weekly)
+  - [Farm Water Stress Map](#9-farm-water-stress-map)
+  - [Telegram Deep-Link](#10-telegram-deep-link)
+  - [Metrics Summary](#11-metrics-summary)
+  - [Metrics Farmer History](#12-metrics-farmer-history)
+  - [Admin Trigger Weekly](#13-admin-trigger-weekly)
 - [FAO-56 Engine](#fao-56-engine)
 - [Telegram Bot](#telegram-bot)
 - [Scheduler](#scheduler)
@@ -483,7 +484,94 @@ Returns NDVI and NDMI vegetation indices without running the FAO-56 engine.
 
 ---
 
-### 9. Telegram Deep-Link
+### 9. Farm Water Stress Map
+
+|            |                                     |
+| ---------- | ----------------------------------- |
+| **Method** | `GET`                               |
+| **Path**   | `/api/v1/farms/{farm_id}/water-map` |
+| **Auth**   | Bearer token                        |
+
+Returns a **spatial map** of water stress inside one farm for a selected date range.
+
+- Uses Sentinel Hub NDMI/NDVI raster data (or deterministic mock fallback)
+- Splits the farm area into cells and classifies each one as `HIGH`, `MEDIUM`, or `LOW` stress
+- Designed for Leaflet/Mapbox overlays on the frontend
+
+**Query params:**
+
+| Param           | Type   | Default     | Description                 |
+| --------------- | ------ | ----------- | --------------------------- |
+| `start_date`    | string | 30 days ago | `YYYY-MM-DD`                |
+| `end_date`      | string | today       | `YYYY-MM-DD`                |
+| `max_cloud_pct` | float  | `20`        | Cloud filter (0–100)        |
+| `grid_size`     | int    | `20`        | Map resolution (8–40 cells) |
+
+**Example request:**
+
+```http
+GET /api/v1/farms/36201fe0-4deb-4809-bdab-01b47593e4be/water-map?start_date=2026-02-01&end_date=2026-03-07&grid_size=16&max_cloud_pct=20
+Authorization: Bearer <token>
+```
+
+**Response 200 (trimmed):**
+
+```json
+{
+  "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "source": "sentinel_hub",
+  "note": null,
+  "window_start": "2026-02-01",
+  "window_end": "2026-03-07",
+  "max_cloud_pct": 20.0,
+  "grid_width": 16,
+  "grid_height": 16,
+  "legend": {
+    "HIGH": "Red = high water stress, irrigate first",
+    "MEDIUM": "Orange = medium stress",
+    "LOW": "Green = low stress"
+  },
+  "summary": {
+    "cells_total": 256,
+    "cells_in_polygon": 144,
+    "high_stress_cells": 52,
+    "medium_stress_cells": 49,
+    "low_stress_cells": 43,
+    "avg_ndmi": 0.1042,
+    "avg_ndvi": 0.3218,
+    "avg_stress_score": 0.2913
+  },
+  "cells": [
+    {
+      "id": "r0_c0",
+      "polygon": [
+        [-5.55, 33.88],
+        [-5.549, 33.88],
+        [-5.549, 33.881],
+        [-5.55, 33.881],
+        [-5.55, 33.88]
+      ],
+      "centroid": [-5.5495, 33.8805],
+      "ndmi": 0.0213,
+      "ndvi": 0.2874,
+      "stress_score": 0.4574,
+      "stress_level": "HIGH",
+      "water_priority": "HIGH",
+      "irrigation_factor": 1.25
+    }
+  ]
+}
+```
+
+| Error                | Code | When                                        |
+| -------------------- | ---- | ------------------------------------------- |
+| `farmer_not_found`   | 404  | Unknown farm id                             |
+| `not_your_farm`      | 403  | Non-admin user requests another user's farm |
+| `incomplete_profile` | 422  | Farm has no polygon                         |
+
+---
+
+### 10. Telegram Deep-Link
 
 |            |                                     |
 | ---------- | ----------------------------------- |
@@ -514,7 +602,7 @@ Generates a Telegram deep-link URL for a farmer. The frontend displays this as a
 
 ---
 
-### 10. Metrics Summary
+### 11. Metrics Summary
 
 |            |                           |
 | ---------- | ------------------------- |
@@ -534,7 +622,7 @@ Generates a Telegram deep-link URL for a farmer. The frontend displays this as a
 
 ---
 
-### 11. Metrics Farmer History
+### 12. Metrics Farmer History
 
 |            |                                      |
 | ---------- | ------------------------------------ |
@@ -576,7 +664,7 @@ Generates a Telegram deep-link URL for a farmer. The frontend displays this as a
 
 ---
 
-### 12. Admin Trigger Weekly
+### 13. Admin Trigger Weekly
 
 |            |                                |
 | ---------- | ------------------------------ |
@@ -880,7 +968,23 @@ const { telegram_link, linked } = await res.json();
 // linked === true → already connected
 ```
 
-### 6. Dashboard Metrics
+### 6. Water Stress Map (Leaflet / Mapbox)
+
+```javascript
+const mapData = await fetch(
+  `${API_BASE}/farms/${farm_id}/water-map?start_date=2026-02-01&end_date=2026-03-07&grid_size=16&max_cloud_pct=20`,
+  { headers },
+).then((r) => r.json());
+
+// mapData.cells[] => draw each cell polygon on map
+// Color by stress_level:
+//   HIGH   -> red
+//   MEDIUM -> orange
+//   LOW    -> green
+// Use mapData.summary for KPI cards (high/medium/low cells)
+```
+
+### 7. Dashboard Metrics
 
 ```javascript
 // Summary stats
@@ -896,7 +1000,7 @@ const detail = await fetch(`${API_BASE}/metrics/farmer/${farm_id}`, {
 // detail.farmer, detail.alerts[]
 ```
 
-### 7. Error Handling
+### 8. Error Handling
 
 ```javascript
 // 401 → token expired or invalid → redirect to login

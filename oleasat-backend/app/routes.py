@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_admin, hash_password, verify_password, create_access_token
@@ -27,9 +27,10 @@ from app.schemas import (
     RegisterResponse,
     SatelliteIndicesRequest,
     SatelliteIndicesResponse,
+    WaterStressMapResponse,
     UserOut,
 )
-from app.services import get_satellite_features, run_pipeline
+from app.services import get_satellite_features, get_water_stress_map, run_pipeline
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -294,6 +295,52 @@ def satellite_indices(payload: SatelliteIndicesRequest, _user=Depends(get_curren
         max_cloud_pct=payload.max_cloud_pct,
     )
     return SatelliteIndicesResponse(**result)
+
+
+@router.get("/farms/{farm_id}/water-map", response_model=WaterStressMapResponse, tags=["Satellite"],
+            summary="Get spatial water stress map for a farm")
+def farm_water_map(
+    farm_id: str,
+    start_date: str | None = Query(default=None, description="YYYY-MM-DD"),
+    end_date: str | None = Query(default=None, description="YYYY-MM-DD"),
+    max_cloud_pct: float = Query(default=20, ge=0, le=100),
+    grid_size: int = Query(default=20, ge=8, le=40, description="Target map resolution in cells"),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> WaterStressMapResponse:
+    """Returns a per-cell spatial water stress map for map visualization.
+
+    - Uses Sentinel Hub raster data (NDMI/NDVI) clipped to the farm polygon
+    - Supports date-range filtering (`start_date`, `end_date`)
+    - Returns GeoJSON-like cell polygons + stress levels (HIGH/MEDIUM/LOW)
+
+    Access control:
+    - ADMIN can query any farm
+    - FARMER can query only their own farms
+    """
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farm_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if user.role != "ADMIN" and farmer.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    if not farmer.polygon_json:
+        raise HTTPException(status_code=422, detail={"error": "incomplete_profile", "missing_fields": ["polygon"]})
+
+    polygon = json.loads(farmer.polygon_json)
+    result = get_water_stress_map(
+        polygon=polygon,
+        start_date=start_date,
+        end_date=end_date,
+        max_cloud_pct=max_cloud_pct,
+        grid_size=grid_size,
+    )
+
+    return WaterStressMapResponse(
+        farm_id=farm_id,
+        **result,
+    )
 
 
 # ---------- Metrics (Spec §5.3) ----------
