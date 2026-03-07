@@ -18,6 +18,8 @@ class Settings:
     sh_base_url: str = os.getenv("SH_BASE_URL", "https://services.sentinel-hub.com")
     sh_token_url: str = os.getenv("SH_TOKEN_URL", "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token")
     telegram_bot_token: str | None = os.getenv("TELEGRAM_BOT_TOKEN")
+    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
+    jwt_expire_minutes: str = os.getenv("JWT_EXPIRE_MINUTES", "1440")
 
 
 settings = Settings()

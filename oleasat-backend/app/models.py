@@ -21,6 +21,27 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    """Web app user account (admin / operator)."""
+
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(100), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    role = Column(
+        Enum("ADMIN", "OPERATOR", name="user_role_enum"),
+        nullable=False,
+        default="OPERATOR",
+    )
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self) -> str:
+        return f"<User id={self.id} email={self.email} role={self.role}>"
+
+
 class FarmerProfile(Base):
     """Farmer profile — stores onboarding data and orchard parameters (§4.1)."""
 

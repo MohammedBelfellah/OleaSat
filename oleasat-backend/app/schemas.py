@@ -20,6 +20,40 @@ class HealthResponse(BaseModel):
     db: str = "ok"
 
 
+# ---------- Auth ----------
+
+class AuthRegisterRequest(BaseModel):
+    """Create a new web-app user account."""
+    email: str = Field(min_length=5, description="User email")
+    password: str = Field(min_length=6, description="Plain-text password (hashed server-side)")
+    full_name: Optional[str] = Field(default=None, description="Display name")
+
+
+class AuthLoginRequest(BaseModel):
+    """Login with email + password."""
+    email: str
+    password: str
+
+
+class AuthTokenResponse(BaseModel):
+    """JWT access token returned after login or register."""
+    access_token: str
+    token_type: str = "bearer"
+    user_id: str
+    email: str
+    full_name: Optional[str] = None
+    role: str = "OPERATOR"
+
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    is_active: bool
+    created_at: Optional[str] = None
+
+
 class RegisterRequest(BaseModel):
     farmer_name: str = Field(min_length=2)
     phone: str = Field(min_length=6)

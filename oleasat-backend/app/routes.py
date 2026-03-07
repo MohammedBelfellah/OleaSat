@@ -5,11 +5,15 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth import get_current_user, hash_password, verify_password, create_access_token
 from app.database import get_db
-from app.models import AlertRecord, FarmerProfile
+from app.models import AlertRecord, FarmerProfile, User
 from app.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
+    AuthLoginRequest,
+    AuthRegisterRequest,
+    AuthTokenResponse,
     CalculateRequest,
     CalculateResponse,
     FarmerOut,
@@ -20,6 +24,7 @@ from app.schemas import (
     RegisterResponse,
     SatelliteIndicesRequest,
     SatelliteIndicesResponse,
+    UserOut,
 )
 from app.services import get_satellite_features, run_pipeline
 
@@ -46,6 +51,87 @@ def health_check(db: Session = Depends(get_db)) -> HealthResponse:
     return HealthResponse(status="ok", db=db_status)
 
 
+# ---------- Auth ----------
+
+@router.post("/auth/register", response_model=AuthTokenResponse, tags=["Auth"],
+             summary="Create a new user account", status_code=201)
+def auth_register(
+    payload: AuthRegisterRequest,
+    db: Session = Depends(get_db),
+) -> AuthTokenResponse:
+    """Register a new web-app user (operator/admin).
+
+    Returns a JWT access token so the frontend can immediately start
+    making authenticated requests after sign-up.
+    """
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="email_already_registered")
+
+    user = User(
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        full_name=payload.full_name,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token({"sub": user.id, "email": user.email, "role": user.role})
+    logger.info("Registered user %s (%s)", user.id, user.email)
+
+    return AuthTokenResponse(
+        access_token=token,
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+    )
+
+
+@router.post("/auth/login", response_model=AuthTokenResponse, tags=["Auth"],
+             summary="Login and receive a JWT token")
+def auth_login(
+    payload: AuthLoginRequest,
+    db: Session = Depends(get_db),
+) -> AuthTokenResponse:
+    """Authenticate with email + password. Returns a JWT access token valid for 24 hours.
+
+    Use the token in the `Authorization: Bearer {token}` header for all protected endpoints.
+    """
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="invalid_credentials")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="account_deactivated")
+
+    token = create_access_token({"sub": user.id, "email": user.email, "role": user.role})
+    logger.info("User logged in: %s", user.email)
+
+    return AuthTokenResponse(
+        access_token=token,
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+    )
+
+
+@router.get("/auth/me", response_model=UserOut, tags=["Auth"],
+            summary="Get current user profile")
+def auth_me(user=Depends(get_current_user)) -> UserOut:
+    """Returns the profile of the currently authenticated user."""
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at.isoformat() if user.created_at else None,
+    )
+
+
 # ---------- Register ----------
 
 @router.post("/register", response_model=RegisterResponse, tags=["Farms"],
@@ -54,6 +140,7 @@ def health_check(db: Session = Depends(get_db)) -> HealthResponse:
 def register_farm(
     payload: RegisterRequest,
     db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
 ) -> RegisterResponse:
     """Creates a new farmer profile in the database.
 
@@ -99,6 +186,7 @@ def register_farm(
 def calculate(
     payload: CalculateRequest,
     db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
 ) -> CalculateResponse:
     """Looks up the farmer profile from the database, then runs the full pipeline:
 
@@ -160,7 +248,7 @@ def calculate(
 
 @router.post("/analyze", response_model=AnalyzeResponse, tags=["Irrigation"],
              summary="Analyze irrigation (direct parameters, no DB)")
-def analyze_farm(payload: AnalyzeRequest) -> AnalyzeResponse:
+def analyze_farm(payload: AnalyzeRequest, _user=Depends(get_current_user)) -> AnalyzeResponse:
     """Same pipeline as `/calculate` but you pass all parameters directly.
     No database lookup or persistence — useful for testing and one-off queries.
 
@@ -184,7 +272,7 @@ def analyze_farm(payload: AnalyzeRequest) -> AnalyzeResponse:
 
 @router.post("/satellite/indices", response_model=SatelliteIndicesResponse, tags=["Satellite"],
              summary="Get NDVI & NDMI vegetation indices")
-def satellite_indices(payload: SatelliteIndicesRequest) -> SatelliteIndicesResponse:
+def satellite_indices(payload: SatelliteIndicesRequest, _user=Depends(get_current_user)) -> SatelliteIndicesResponse:
     """Queries Sentinel Hub Statistical API for Sentinel-2 L2A imagery over the given polygon.
 
     Returns:
@@ -208,7 +296,7 @@ def satellite_indices(payload: SatelliteIndicesRequest) -> SatelliteIndicesRespo
 
 @router.get("/metrics/summary", response_model=MetricsSummaryResponse, tags=["Metrics"],
             summary="Dashboard aggregate statistics")
-def metrics_summary(db: Session = Depends(get_db)) -> MetricsSummaryResponse:
+def metrics_summary(db: Session = Depends(get_db), _user=Depends(get_current_user)) -> MetricsSummaryResponse:
     """Returns aggregate counts for monitoring dashboards:
 
     - `farmers_active` — number of farmers with state = ACTIVE
@@ -237,6 +325,7 @@ def metrics_summary(db: Session = Depends(get_db)) -> MetricsSummaryResponse:
 def metrics_farmer(
     farmer_id: str,
     db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
 ) -> MetricsFarmerResponse:
     """Returns the farmer profile and a chronological list of all AlertRecords
     (newest first). Each alert includes ET₀, rainfall, Kc, litres/tree,
@@ -292,6 +381,7 @@ def metrics_farmer(
 def telegram_link(
     farmer_id: str,
     db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
 ) -> dict:
     """Returns a `https://t.me/OleaSat_bot?start={farmer_id}` deep-link URL.
 
@@ -316,7 +406,7 @@ def telegram_link(
 
 @router.post("/admin/trigger-weekly", tags=["Metrics"],
              summary="Manually trigger the weekly irrigation job")
-async def trigger_weekly() -> dict:
+async def trigger_weekly(_user=Depends(get_current_user)) -> dict:
     """Manually runs the weekly scheduler job for all active farmers
     with a linked Telegram account. Useful for testing and demos.
     """

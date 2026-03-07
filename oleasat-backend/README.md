@@ -1,9 +1,9 @@
 # 🫒 OleaBot — Irrigation Advisory Backend
 
-> Conversational irrigation advisory system for Moroccan olive orchards.  
+> Smart irrigation advisory system for Moroccan olive orchards.  
 > Combines **FAO-56 Penman-Monteith** crop water model, **Open-Meteo** weather data,
-> and **Sentinel Hub** satellite imagery to generate personalised weekly irrigation
-> recommendations.
+> **Sentinel Hub** satellite imagery, **JWT authentication**, and a **Telegram bot**
+> to generate personalised weekly irrigation recommendations.
 
 ---
 
@@ -14,50 +14,61 @@
 - [Environment Variables](#environment-variables)
 - [API Documentation](#api-documentation)
   - [Interactive Docs (Swagger)](#interactive-docs)
+  - [Authentication Flow](#authentication-flow)
   - [Health](#1-health-check)
-  - [Register Farm](#2-register-farm)
-  - [Calculate Irrigation](#3-calculate-irrigation)
-  - [Analyze (Direct)](#4-analyze-direct)
-  - [Satellite Indices](#5-satellite-indices)
-  - [Metrics Summary](#6-metrics-summary)
-  - [Metrics Farmer History](#7-metrics-farmer-history)
+  - [Auth Register](#2-auth-register)
+  - [Auth Login](#3-auth-login)
+  - [Auth Me](#4-auth-me)
+  - [Register Farm](#5-register-farm)
+  - [Calculate Irrigation](#6-calculate-irrigation)
+  - [Analyze (Direct)](#7-analyze-direct)
+  - [Satellite Indices](#8-satellite-indices)
+  - [Telegram Deep-Link](#9-telegram-deep-link)
+  - [Metrics Summary](#10-metrics-summary)
+  - [Metrics Farmer History](#11-metrics-farmer-history)
+  - [Admin Trigger Weekly](#12-admin-trigger-weekly)
 - [FAO-56 Engine](#fao-56-engine)
+- [Telegram Bot](#telegram-bot)
+- [Scheduler](#scheduler)
 - [Project Structure](#project-structure)
 - [Data Model](#data-model)
+- [Frontend Integration Guide](#frontend-integration-guide)
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                  OleaBot Backend                        │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│   Client (Postman / Bot / Dashboard)                    │
-│       │                                                 │
-│       ▼                                                 │
-│   ┌─────────────────────┐                               │
-│   │   FastAPI + Pydantic │  ← routes.py                │
-│   │   /api/v1/*          │                              │
-│   └────────┬────────────┘                               │
-│            │                                            │
-│   ┌────────┴────────────────────────────┐               │
-│   │         services.py                  │              │
-│   │  ┌──────────┐ ┌──────────┐ ┌──────┐ │              │
-│   │  │Sentinel  │ │Open-Meteo│ │FAO-56│ │              │
-│   │  │Hub API   │ │Weather   │ │Engine│ │              │
-│   │  │NDVI/NDMI │ │ET₀+Rain  │ │IR/L  │ │              │
-│   │  └──────────┘ └──────────┘ └──────┘ │              │
-│   └────────┬────────────────────────────┘               │
-│            │                                            │
-│   ┌────────┴──────┐                                     │
-│   │  SQLite DB    │  ← models.py                       │
-│   │  (SQLAlchemy) │                                     │
-│   │  FarmerProfile│                                     │
-│   │  AlertRecord  │                                     │
-│   └───────────────┘                                     │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                   OleaSat Backend                        │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│   Web App (React/Vue)          Telegram                  │
+│       │                            │                     │
+│       ▼                            ▼                     │
+│   ┌──────────────────┐    ┌────────────────┐             │
+│   │  FastAPI + JWT   │    │  Telegram Bot  │             │
+│   │  /api/v1/*       │    │  /start /help  │             │
+│   │  routes.py       │    │  bot.py        │             │
+│   └───────┬──────────┘    └───────┬────────┘             │
+│           │                       │                      │
+│   ┌───────┴───────────────────────┴──────────┐           │
+│   │              services.py                  │          │
+│   │  ┌──────────┐ ┌──────────┐ ┌───────────┐ │          │
+│   │  │Sentinel  │ │Open-Meteo│ │  FAO-56   │ │          │
+│   │  │Hub API   │ │Weather   │ │  Engine   │ │          │
+│   │  │NDVI/NDMI │ │ET₀+Rain  │ │  IR/L     │ │          │
+│   │  └──────────┘ └──────────┘ └───────────┘ │          │
+│   └───────┬──────────────────────────────────┘           │
+│           │                                              │
+│   ┌───────┴────────┐    ┌──────────────────┐             │
+│   │  SQLite DB     │    │  APScheduler     │             │
+│   │  (SQLAlchemy)  │    │  Sunday 07:00    │             │
+│   │  User          │    │  scheduler.py    │             │
+│   │  FarmerProfile │    └──────────────────┘             │
+│   │  AlertRecord   │                                     │
+│   └────────────────┘                                     │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -70,7 +81,7 @@ cd oleasat-backend
 
 # 2. Create your environment file
 cp .env.example .env
-# Edit .env with your Sentinel Hub credentials (optional)
+# Edit .env with your credentials
 
 # 3. Build and run
 docker compose up --build -d
@@ -86,17 +97,20 @@ curl http://localhost:8001/api/v1/health
 
 ## Environment Variables
 
-| Variable              | Required | Default                                  | Description                   |
-| --------------------- | -------- | ---------------------------------------- | ----------------------------- |
-| `DATABASE_URL`        | No       | `sqlite:///./data/oleasat.db`            | SQLAlchemy database URL       |
-| `OPEN_METEO_BASE_URL` | No       | `https://api.open-meteo.com/v1/forecast` | Weather API base URL          |
-| `SH_CLIENT_ID`        | No\*     | —                                        | Sentinel Hub OAuth2 client ID |
-| `SH_CLIENT_SECRET`    | No\*     | —                                        | Sentinel Hub OAuth2 secret    |
-| `SH_BASE_URL`         | No       | `https://services.sentinel-hub.com`      | Sentinel Hub API base         |
-| `SH_TOKEN_URL`        | No       | (auto)                                   | Sentinel Hub token endpoint   |
+| Variable              | Required | Default                                  | Description                        |
+| --------------------- | -------- | ---------------------------------------- | ---------------------------------- |
+| `JWT_SECRET_KEY`      | **Yes**  | `change-me-in-production`                | 256-bit hex key for signing JWTs   |
+| `JWT_EXPIRE_MINUTES`  | No       | `1440` (24h)                             | Token expiry in minutes            |
+| `DATABASE_URL`        | No       | `sqlite:///./data/oleasat.db`            | SQLAlchemy database URL            |
+| `TELEGRAM_BOT_TOKEN`  | No\*     | —                                        | Telegram bot token from @BotFather |
+| `OPEN_METEO_BASE_URL` | No       | `https://api.open-meteo.com/v1/forecast` | Weather API base URL               |
+| `SH_CLIENT_ID`        | No\*\*   | —                                        | Sentinel Hub OAuth2 client ID      |
+| `SH_CLIENT_SECRET`    | No\*\*   | —                                        | Sentinel Hub OAuth2 secret         |
+| `SH_BASE_URL`         | No       | `https://services.sentinel-hub.com`      | Sentinel Hub API base              |
+| `SH_TOKEN_URL`        | No       | (auto)                                   | Sentinel Hub token endpoint        |
 
-> \*If Sentinel Hub credentials are not set, satellite endpoints return deterministic
-> mock values (`source: "mock"`) so development can continue without credentials.
+> \*If `TELEGRAM_BOT_TOKEN` is not set, the bot and scheduler start silently — the API works without Telegram.  
+> \*\*If Sentinel Hub credentials are not set, satellite endpoints return deterministic mock values (`source: "mock"`).
 
 ---
 
@@ -110,6 +124,31 @@ FastAPI auto-generates interactive documentation:
 | -------------- | ---------------------------------------------------------- |
 | **Swagger UI** | [http://localhost:8001/docs](http://localhost:8001/docs)   |
 | **ReDoc**      | [http://localhost:8001/redoc](http://localhost:8001/redoc) |
+
+---
+
+### Authentication Flow
+
+```
+1. POST /api/v1/auth/register   →  { access_token, user_id, ... }
+   or
+   POST /api/v1/auth/login      →  { access_token, user_id, ... }
+
+2. All subsequent requests include:
+   Authorization: Bearer <access_token>
+
+3. Token expires after 24 hours → login again
+```
+
+**Public endpoints (no token required):**
+
+- `GET  /api/v1/health`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+
+**Protected endpoints (Bearer token required):**
+
+- Everything else
 
 ---
 
@@ -132,13 +171,120 @@ FastAPI auto-generates interactive documentation:
 
 ---
 
-### 2. Register Farm
+### 2. Auth Register
+
+|            |                         |
+| ---------- | ----------------------- |
+| **Method** | `POST`                  |
+| **Path**   | `/api/v1/auth/register` |
+| **Auth**   | None                    |
+
+Create a new web-app user account. Returns a JWT so the frontend can immediately make authenticated requests.
+
+**Request body:**
+
+```json
+{
+  "email": "admin@oleasat.ma",
+  "password": "OleaSat2026!",
+  "full_name": "Admin OleaSat"
+}
+```
+
+| Field       | Type   | Required | Description                |
+| ----------- | ------ | -------- | -------------------------- |
+| `email`     | string | Yes      | Unique email (min 5 chars) |
+| `password`  | string | Yes      | Plain text, min 6 chars    |
+| `full_name` | string | No       | Display name               |
+
+**Response 201:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "user_id": "7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
+  "email": "admin@oleasat.ma",
+  "full_name": "Admin OleaSat",
+  "role": "OPERATOR"
+}
+```
+
+| Error                      | Code | When                 |
+| -------------------------- | ---- | -------------------- |
+| `email_already_registered` | 409  | Email already in use |
+
+---
+
+### 3. Auth Login
+
+|            |                      |
+| ---------- | -------------------- |
+| **Method** | `POST`               |
+| **Path**   | `/api/v1/auth/login` |
+| **Auth**   | None                 |
+
+**Request body:**
+
+```json
+{
+  "email": "admin@oleasat.ma",
+  "password": "OleaSat2026!"
+}
+```
+
+**Response 200:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "user_id": "7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
+  "email": "admin@oleasat.ma",
+  "full_name": "Admin OleaSat",
+  "role": "OPERATOR"
+}
+```
+
+| Error                 | Code | When                 |
+| --------------------- | ---- | -------------------- |
+| `invalid_credentials` | 401  | Wrong email/password |
+| `account_deactivated` | 403  | Account disabled     |
+
+---
+
+### 4. Auth Me
+
+|            |                   |
+| ---------- | ----------------- |
+| **Method** | `GET`             |
+| **Path**   | `/api/v1/auth/me` |
+| **Auth**   | Bearer token      |
+
+Returns the authenticated user's profile.
+
+**Response 200:**
+
+```json
+{
+  "id": "7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
+  "email": "admin@oleasat.ma",
+  "full_name": "Admin OleaSat",
+  "role": "OPERATOR",
+  "is_active": true,
+  "created_at": "2026-03-07T01:04:16.079200"
+}
+```
+
+---
+
+### 5. Register Farm
 
 |            |                    |
 | ---------- | ------------------ |
 | **Method** | `POST`             |
 | **Path**   | `/api/v1/register` |
-| **Auth**   | None               |
+| **Auth**   | Bearer token       |
 
 **Request body:**
 
@@ -179,17 +325,17 @@ FastAPI auto-generates interactive documentation:
 }
 ```
 
-> ⚠️ **Save the `farm_id`** — you need it for `/calculate` and `/metrics/farmer/{id}`.
+> ⚠️ **Save the `farm_id`** — you need it for `/calculate`, `/telegram-link/{id}`, and `/metrics/farmer/{id}`.
 
 ---
 
-### 3. Calculate Irrigation
+### 6. Calculate Irrigation
 
 |            |                     |
 | ---------- | ------------------- |
 | **Method** | `POST`              |
 | **Path**   | `/api/v1/calculate` |
-| **Auth**   | None (internal)     |
+| **Auth**   | Bearer token        |
 
 **Request body:**
 
@@ -247,15 +393,15 @@ The system:
 
 ---
 
-### 4. Analyze (Direct)
+### 7. Analyze (Direct)
 
 |            |                   |
 | ---------- | ----------------- |
 | **Method** | `POST`            |
 | **Path**   | `/api/v1/analyze` |
-| **Auth**   | None              |
+| **Auth**   | Bearer token      |
 
-Same pipeline as `/calculate` but you pass all parameters directly — no database lookup.
+Same pipeline as `/calculate` but you pass all parameters directly — no database lookup or persistence.
 
 **Request body:**
 
@@ -294,13 +440,13 @@ Same pipeline as `/calculate` but you pass all parameters directly — no databa
 
 ---
 
-### 5. Satellite Indices
+### 8. Satellite Indices
 
 |            |                             |
 | ---------- | --------------------------- |
 | **Method** | `POST`                      |
 | **Path**   | `/api/v1/satellite/indices` |
-| **Auth**   | None                        |
+| **Auth**   | Bearer token                |
 
 Returns NDVI and NDMI vegetation indices without running the FAO-56 engine.
 
@@ -337,33 +483,64 @@ Returns NDVI and NDMI vegetation indices without running the FAO-56 engine.
 
 ---
 
-### 6. Metrics Summary
+### 9. Telegram Deep-Link
 
-|            |                           |
-| ---------- | ------------------------- |
-| **Method** | `GET`                     |
-| **Path**   | `/api/v1/metrics/summary` |
-| **Auth**   | None                      |
+|            |                                     |
+| ---------- | ----------------------------------- |
+| **Method** | `GET`                               |
+| **Path**   | `/api/v1/telegram-link/{farmer_id}` |
+| **Auth**   | Bearer token                        |
+
+Generates a Telegram deep-link URL for a farmer. The frontend displays this as a button or QR code.
 
 **Response 200:**
 
 ```json
 {
-  "farmers_active": 1,
-  "alerts_sent_this_week": 1,
-  "avg_litres_per_tree": 0.0
+  "farmer_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "telegram_link": "https://t.me/OleaSat_bot?start=36201fe0-4deb-4809-bdab-01b47593e4be",
+  "linked": false
+}
+```
+
+| Field           | Description                                         |
+| --------------- | --------------------------------------------------- |
+| `telegram_link` | URL the farmer opens to link their Telegram account |
+| `linked`        | `true` if the farmer already has Telegram connected |
+
+| Error              | Code | When            |
+| ------------------ | ---- | --------------- |
+| `farmer_not_found` | 404  | Unknown farm_id |
+
+---
+
+### 10. Metrics Summary
+
+|            |                           |
+| ---------- | ------------------------- |
+| **Method** | `GET`                     |
+| **Path**   | `/api/v1/metrics/summary` |
+| **Auth**   | Bearer token              |
+
+**Response 200:**
+
+```json
+{
+  "farmers_active": 3,
+  "alerts_sent_this_week": 2,
+  "avg_litres_per_tree": 27.2
 }
 ```
 
 ---
 
-### 7. Metrics Farmer History
+### 11. Metrics Farmer History
 
 |            |                                      |
 | ---------- | ------------------------------------ |
 | **Method** | `GET`                                |
 | **Path**   | `/api/v1/metrics/farmer/{farmer_id}` |
-| **Auth**   | None                                 |
+| **Auth**   | Bearer token                         |
 
 **Response 200:**
 
@@ -394,6 +571,27 @@ Returns NDVI and NDMI vegetation indices without running the FAO-56 engine.
       "delivery_status": "SENT"
     }
   ]
+}
+```
+
+---
+
+### 12. Admin Trigger Weekly
+
+|            |                                |
+| ---------- | ------------------------------ |
+| **Method** | `POST`                         |
+| **Path**   | `/api/v1/admin/trigger-weekly` |
+| **Auth**   | Bearer token                   |
+
+Manually triggers the weekly irrigation job for all active farmers with linked Telegram accounts. Useful for testing and demos.
+
+**Response 200:**
+
+```json
+{
+  "status": "ok",
+  "message": "Manual weekly job completed"
 }
 ```
 
@@ -449,35 +647,123 @@ Sets `survival_litres = litres_per_tree × 0.35` (minimum to protect flowers/fru
 
 ---
 
+## Telegram Bot
+
+**Bot:** [@OleaSat_bot](https://t.me/OleaSat_bot)
+
+The bot is **notification-only** — farmers register via the web app, then link their Telegram to receive weekly alerts.
+
+### Flow
+
+```
+1. Farmer registers via web app        →  POST /register → farm_id
+2. Frontend fetches deep-link           →  GET /telegram-link/{farm_id}
+3. Farmer clicks t.me/OleaSat_bot?start={farm_id}
+4. Bot receives /start {farm_id}        →  saves telegram_chat_id in DB
+5. Every Sunday 07:00                   →  scheduler runs pipeline + sends alert
+```
+
+### Bot Commands
+
+| Command   | Description                           |
+| --------- | ------------------------------------- |
+| `/start`  | Link Telegram to farmer profile       |
+| `/help`   | Show available commands               |
+| `/status` | Show the most recent irrigation alert |
+
+### Alert Message Example (French)
+
+```
+🔴 Alerte Irrigation Hebdomadaire
+
+Bonjour Ahmed,
+
+📊 Statut : URGENT — Irrigation requise
+
+📋 Détails du calcul :
+  • Phase : Floraison (Kc=0.7)
+  • ET₀ semaine : 48.5 mm
+  • Pluie semaine : 0.0 mm
+  • Pluie efficace : 0.0 mm
+  • NDVI : 0.52
+
+💧 Recommandation :
+  • Par arbre : 3395.0 L
+  • Total parcelle : 407400.0 L (407.4 m³)
+
+⚠️ Mode sécheresse activé!
+Irrigation de survie minimale : 1188.25 L/arbre
+```
+
+---
+
+## Scheduler
+
+**Engine:** APScheduler (AsyncIOScheduler)  
+**Schedule:** Every Sunday at 07:00 Africa/Casablanca timezone
+
+### What it does each run:
+
+1. Query all `ACTIVE` farmers with `telegram_chat_id` set
+2. For each farmer: run the FAO-56 pipeline (weather + satellite + calculation)
+3. Build a French alert message using templates
+4. Send via Telegram bot
+5. Log an `AlertRecord` with `delivery_status = SENT | FAILED`
+
+### Manual Trigger
+
+```bash
+curl -X POST http://localhost:8001/api/v1/admin/trigger-weekly \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
 ## Project Structure
 
 ```
 oleasat-backend/
-├── docker-compose.yml      # Docker services + data volume
-├── Dockerfile              # Python 3.11-slim image
-├── requirements.txt        # Python dependencies
-├── .env                    # Environment variables (not in git)
-├── .env.example            # Template for .env
+├── docker-compose.yml        # Docker services + data volume
+├── Dockerfile                # Python 3.11-slim image
+├── requirements.txt          # 13 Python dependencies
+├── .env                      # Environment variables (not in git)
+├── .env.example              # Template for .env
 └── app/
-    ├── main.py             # FastAPI app entry + OpenAPI metadata
-    ├── config.py           # Settings from environment variables
-    ├── routes.py           # API endpoints (7 routes)
-    ├── services.py         # Business logic (Satellite + Weather + FAO-56)
-    ├── schemas.py          # Pydantic request/response models
-    ├── models.py           # SQLAlchemy ORM models
-    └── database.py         # DB engine + session factory
+    ├── main.py               # FastAPI app + CORS + lifespan (bot + scheduler)
+    ├── config.py             # Settings from environment variables
+    ├── auth.py               # JWT + bcrypt + get_current_user dependency
+    ├── routes.py             # 12 API endpoints with auth protection
+    ├── services.py           # Business logic (Satellite + Weather + FAO-56)
+    ├── schemas.py            # Pydantic request/response models
+    ├── models.py             # SQLAlchemy ORM (User + FarmerProfile + AlertRecord)
+    ├── database.py           # DB engine + session factory
+    ├── bot.py                # Telegram bot (deep-link + /help + /status)
+    ├── templates.py          # Telegram message templates (French)
+    └── scheduler.py          # APScheduler weekly irrigation job
 ```
 
 ---
 
 ## Data Model
 
+### User
+
+| Column            | Type            | Description              |
+| ----------------- | --------------- | ------------------------ |
+| `id`              | UUID PK         | Internal identifier      |
+| `email`           | string (unique) | Login email              |
+| `hashed_password` | string          | bcrypt hash              |
+| `full_name`       | string          | Display name             |
+| `role`            | enum            | `ADMIN` or `OPERATOR`    |
+| `is_active`       | boolean         | Account enabled/disabled |
+| `created_at`      | timestamp       | Registration date        |
+
 ### FarmerProfile
 
 | Column                   | Type            | Description                            |
 | ------------------------ | --------------- | -------------------------------------- |
 | `id`                     | UUID PK         | Internal identifier                    |
-| `telegram_chat_id`       | string (unique) | Telegram chat ID (for bot)             |
+| `telegram_chat_id`       | string (unique) | Telegram chat ID (set via deep-link)   |
 | `state`                  | enum            | FSM state: UNREGISTERED → ... → ACTIVE |
 | `latitude` / `longitude` | float           | Parcel centroid                        |
 | `polygon_json`           | text            | GeoJSON polygon coordinates            |
@@ -506,3 +792,119 @@ oleasat-backend/
 | `total_litres`    | float     | Total recommended volume           |
 | `stress_mode`     | boolean   | Whether drought mode was triggered |
 | `delivery_status` | enum      | SENT / FAILED / RETRIED            |
+
+---
+
+## Frontend Integration Guide
+
+### 1. Setup Axios / Fetch
+
+```javascript
+const API_BASE = "http://localhost:8001/api/v1";
+
+// After login, store the token
+localStorage.setItem("token", response.access_token);
+
+// Include in all requests
+const headers = {
+  Authorization: `Bearer ${localStorage.getItem("token")}`,
+  "Content-Type": "application/json",
+};
+```
+
+### 2. Auth Flow
+
+```javascript
+// Register
+const res = await fetch(`${API_BASE}/auth/register`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password, full_name }),
+});
+const { access_token, user_id } = await res.json();
+
+// Login
+const res = await fetch(`${API_BASE}/auth/login`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password }),
+});
+const { access_token } = await res.json();
+
+// Check current user
+const res = await fetch(`${API_BASE}/auth/me`, { headers });
+```
+
+### 3. Farm Registration
+
+```javascript
+const res = await fetch(`${API_BASE}/register`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    farmer_name: "Ahmed",
+    phone: "0612345678",
+    polygon: [
+      [-5.55, 33.89],
+      [-5.54, 33.89],
+      [-5.54, 33.88],
+      [-5.55, 33.88],
+    ],
+    tree_age: "ADULT",
+    soil_type: "MEDIUM",
+    tree_count: 120,
+  }),
+});
+const { farm_id } = await res.json();
+```
+
+### 4. Calculate + Display
+
+```javascript
+const res = await fetch(`${API_BASE}/calculate`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({ farmer_id: farm_id }),
+});
+const data = await res.json();
+// data.recommendation → "SKIP" | "IRRIGATE" | "URGENT"
+// data.litres_per_tree, data.total_litres, data.stress_mode, etc.
+```
+
+### 5. Telegram Link
+
+```javascript
+const res = await fetch(`${API_BASE}/telegram-link/${farm_id}`, { headers });
+const { telegram_link, linked } = await res.json();
+// Show telegram_link as a button or QR code
+// linked === true → already connected
+```
+
+### 6. Dashboard Metrics
+
+```javascript
+// Summary stats
+const summary = await fetch(`${API_BASE}/metrics/summary`, { headers }).then(
+  (r) => r.json(),
+);
+// summary.farmers_active, summary.alerts_sent_this_week, summary.avg_litres_per_tree
+
+// Farmer detail + alert history
+const detail = await fetch(`${API_BASE}/metrics/farmer/${farm_id}`, {
+  headers,
+}).then((r) => r.json());
+// detail.farmer, detail.alerts[]
+```
+
+### 7. Error Handling
+
+```javascript
+// 401 → token expired or invalid → redirect to login
+// 404 → farmer_not_found
+// 409 → email_already_registered
+// 422 → validation error (check response body for details)
+```
+
+### CORS
+
+CORS is enabled for `localhost:3000` and `localhost:5173` (React/Vite dev servers). No proxy needed during development.

@@ -74,6 +74,7 @@ litres/tree = IR × spacing_m² × soil_factor
 
 TAGS_METADATA = [
     {"name": "Health", "description": "System health and connectivity checks"},
+    {"name": "Auth", "description": "Authentication — register, login, JWT tokens"},
     {"name": "Farms", "description": "Farm registration and profile management"},
     {"name": "Irrigation", "description": "FAO-56 irrigation calculation engine"},
     {"name": "Satellite", "description": "Sentinel-2 vegetation indices (NDVI / NDMI)"},
@@ -90,4 +91,16 @@ app = FastAPI(
     license_info={"name": "Confidential — Hackathon MVP"},
     lifespan=lifespan,
 )
+
+# CORS — allow the frontend dev server and production origin
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(router, prefix="/api/v1")
