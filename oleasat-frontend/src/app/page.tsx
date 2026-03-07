@@ -99,9 +99,12 @@ export default function Home() {
         </section>
 
         <section className={styles.nextStep}>
-          <h2>Step 2: Auth pages are ready</h2>
-          <p>Open the authentication flow and test it against your backend:</p>
+          <h2>Step 3: Farm registration</h2>
+          <p>After authentication, create your first farm profile:</p>
           <div className={styles.linkRow}>
+            <Link className={styles.linkPill} href="/farms/new">
+              Register farm (/register)
+            </Link>
             <Link className={styles.linkPill} href="/auth/register">
               Register
             </Link>

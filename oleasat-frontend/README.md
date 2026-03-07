@@ -2,10 +2,11 @@
 
 Frontend client for the OleaSat backend (`/api/v1/*`).
 
-## Implemented Scope (Step 1 + Step 2)
+## Implemented Scope (Step 1 + Step 3)
 
 - Step 1: frontend-backend connectivity check with `GET /health`
 - Step 2: authentication flow pages using backend auth endpoints
+- Step 3: farm registration flow using authenticated backend endpoint
 
 Implemented auth routes:
 
@@ -14,6 +15,10 @@ Implemented auth routes:
 - `/auth/me` -> `GET /auth/me` with `Authorization: Bearer <token>`
 
 The access token is stored in browser `localStorage`.
+
+Implemented farm route:
+
+- `/farms/new` -> `POST /register` (requires bearer token)
 
 ## Prerequisites
 
@@ -47,9 +52,12 @@ Open `http://localhost:3000`.
 - `src/app/auth/register/page.tsx`: register UI
 - `src/app/auth/login/page.tsx`: login UI
 - `src/app/auth/me/page.tsx`: protected profile check
+- `src/app/farms/new/page.tsx`: farm registration form + polygon input
 
 ## Next Incremental Step
 
-Build farm registration flow against:
+Build farm management and analysis flow against:
 
-- `POST /register`
+- `GET /farms`
+- `GET /farms/{farm_id}`
+- `POST /calculate`

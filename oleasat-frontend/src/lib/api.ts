@@ -32,8 +32,28 @@ export type UserOut = {
   created_at?: string | null;
 };
 
+export type TreeAge = "YOUNG" | "ADULT";
+export type SoilType = "SANDY" | "MEDIUM" | "CLAY";
+
+export type RegisterFarmRequest = {
+  farmer_name: string;
+  phone: string;
+  crop_type: string;
+  tree_age: TreeAge;
+  soil_type: SoilType;
+  tree_count: number;
+  spacing_m2: number;
+  irrigation_efficiency: number;
+  polygon: number[][];
+};
+
+export type RegisterFarmResponse = {
+  farm_id: string;
+  message: string;
+};
+
 type ApiErrorPayload = {
-  detail?: string;
+  detail?: unknown;
 };
 
 export class ApiError extends Error {
@@ -60,8 +80,12 @@ async function asApiError(response: Response): Promise<ApiError> {
 
   try {
     const payload = (await response.json()) as ApiErrorPayload;
-    if (payload.detail) {
-      detail = payload.detail;
+    if (payload.detail !== undefined) {
+      if (typeof payload.detail === "string") {
+        detail = payload.detail;
+      } else {
+        detail = JSON.stringify(payload.detail);
+      }
     }
   } catch {
     // Keep default detail for non-JSON responses.
@@ -139,4 +163,27 @@ export async function authMe(token: string, signal?: AbortSignal): Promise<UserO
   }
 
   return (await response.json()) as UserOut;
+}
+
+export async function registerFarm(
+  token: string,
+  payload: RegisterFarmRequest,
+  signal?: AbortSignal,
+): Promise<RegisterFarmResponse> {
+  const response = await fetch(`${API_BASE_URL}/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as RegisterFarmResponse;
 }

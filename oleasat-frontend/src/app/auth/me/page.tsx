@@ -136,6 +136,9 @@ export default function MePage() {
           )}
 
           <div className={styles.linksRow}>
+            <Link className={styles.linkPill} href="/farms/new">
+              Register new farm
+            </Link>
             <Link className={styles.linkPill} href="/auth/login">
               Go to login
             </Link>
