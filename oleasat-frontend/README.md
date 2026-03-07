@@ -2,13 +2,18 @@
 
 Frontend client for the OleaSat backend (`/api/v1/*`).
 
-## Step 1 Scope
+## Implemented Scope (Step 1 + Step 2)
 
-This first step only does one thing:
+- Step 1: frontend-backend connectivity check with `GET /health`
+- Step 2: authentication flow pages using backend auth endpoints
 
-- verify frontend to backend connectivity with `GET /health`
+Implemented auth routes:
 
-No auth pages or dashboard screens are implemented yet.
+- `/auth/register` -> `POST /auth/register`
+- `/auth/login` -> `POST /auth/login`
+- `/auth/me` -> `GET /auth/me` with `Authorization: Bearer <token>`
+
+The access token is stored in browser `localStorage`.
 
 ## Prerequisites
 
@@ -37,12 +42,14 @@ Open `http://localhost:3000`.
 ## Project Structure
 
 - `src/lib/api.ts`: backend base URL + API calls
-- `src/app/page.tsx`: step-1 health check screen
+- `src/lib/auth.ts`: token persistence helpers
+- `src/app/page.tsx`: health check + auth links
+- `src/app/auth/register/page.tsx`: register UI
+- `src/app/auth/login/page.tsx`: login UI
+- `src/app/auth/me/page.tsx`: protected profile check
 
 ## Next Incremental Step
 
-Build auth flow pages against:
+Build farm registration flow against:
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /auth/me`
+- `POST /register`

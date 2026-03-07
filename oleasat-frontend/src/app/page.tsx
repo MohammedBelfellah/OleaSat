@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import styles from "./page.module.css";
 import { API_BASE_URL, type HealthResponse, fetchHealth } from "@/lib/api";
@@ -98,8 +99,19 @@ export default function Home() {
         </section>
 
         <section className={styles.nextStep}>
-          <h2>Next step suggestion</h2>
-          <p>Build authentication pages (register, login, and current user profile) using `/auth/*` endpoints.</p>
+          <h2>Step 2: Auth pages are ready</h2>
+          <p>Open the authentication flow and test it against your backend:</p>
+          <div className={styles.linkRow}>
+            <Link className={styles.linkPill} href="/auth/register">
+              Register
+            </Link>
+            <Link className={styles.linkPill} href="/auth/login">
+              Login
+            </Link>
+            <Link className={styles.linkPill} href="/auth/me">
+              Current User (/auth/me)
+            </Link>
+          </div>
         </section>
       </main>
     </div>
