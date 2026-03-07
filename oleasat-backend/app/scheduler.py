@@ -20,7 +20,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app.database import SessionLocal
 from app.models import AlertRecord, FarmerProfile
 from app.services import run_pipeline
-from app.templates import get_alert_message
+from app.ai_messages import generate_ai_message
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +65,8 @@ async def _weekly_job() -> None:
                     spacing_m2=farmer.spacing_m2 or 100.0,
                 )
 
-                # Build message in farmer's preferred language
-                message = get_alert_message(
+                # Build message in farmer's preferred language (AI-powered)
+                message = generate_ai_message(
                     language=farmer.language or "FR",
                     farmer_name=farmer.farmer_name or "Agriculteur",
                     recommendation=result["recommendation"],

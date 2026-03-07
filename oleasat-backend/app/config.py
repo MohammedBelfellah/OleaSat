@@ -20,6 +20,7 @@ class Settings:
     telegram_bot_token: str | None = os.getenv("TELEGRAM_BOT_TOKEN")
     jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
     jwt_expire_minutes: str = os.getenv("JWT_EXPIRE_MINUTES", "1440")
+    groq_api_key: str | None = os.getenv("GROQ_API_KEY")
 
 
 settings = Settings()
