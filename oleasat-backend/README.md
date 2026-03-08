@@ -22,6 +22,7 @@
   - [Auth Me](#4-auth-me)
   - [Register Farm](#5-register-farm)
   - [Calculate Irrigation](#6-calculate-irrigation)
+  - [Latest Saved Analysis](#6b-latest-saved-analysis)
   - [Analyze (Direct)](#7-analyze-direct)
   - [Satellite Indices](#8-satellite-indices)
   - [Farm Water Stress Map](#9-farm-water-stress-map)
@@ -157,28 +158,29 @@ FastAPI auto-generates interactive documentation:
 
 ### Complete Endpoint List
 
-| Method | Path                                  | Role                     |
-| ------ | ------------------------------------- | ------------------------ |
-| GET    | `/api/v1/health`                      | Public                   |
-| POST   | `/api/v1/auth/register`               | Public                   |
-| POST   | `/api/v1/auth/login`                  | Public                   |
-| GET    | `/api/v1/auth/me`                     | Any authenticated user   |
-| POST   | `/api/v1/register`                    | FARMER/ADMIN             |
-| GET    | `/api/v1/farms`                       | FARMER(own) / ADMIN(all) |
-| GET    | `/api/v1/farms/{farm_id}`             | Owner or ADMIN           |
-| DELETE | `/api/v1/farms/{farm_id}`             | Owner or ADMIN           |
-| POST   | `/api/v1/calculate`                   | Owner or ADMIN           |
-| POST   | `/api/v1/analyze`                     | Any authenticated user   |
-| POST   | `/api/v1/satellite/indices`           | Any authenticated user   |
-| GET    | `/api/v1/farms/{farm_id}/water-map`   | Owner or ADMIN           |
-| GET    | `/api/v1/telegram-link/{farmer_id}`   | Owner or ADMIN           |
-| GET    | `/api/v1/metrics/summary`             | Any authenticated user   |
-| GET    | `/api/v1/metrics/farmer/{farmer_id}`  | Owner or ADMIN           |
-| POST   | `/api/v1/feedback`                    | Owner or ADMIN           |
-| GET    | `/api/v1/feedback/farmer/{farmer_id}` | Owner or ADMIN           |
-| GET    | `/api/v1/admin/dashboard`             | ADMIN only               |
-| GET    | `/api/v1/admin/farmers`               | ADMIN only               |
-| POST   | `/api/v1/admin/trigger-weekly`        | ADMIN only               |
+| Method | Path                                      | Role                     |
+| ------ | ----------------------------------------- | ------------------------ |
+| GET    | `/api/v1/health`                          | Public                   |
+| POST   | `/api/v1/auth/register`                   | Public                   |
+| POST   | `/api/v1/auth/login`                      | Public                   |
+| GET    | `/api/v1/auth/me`                         | Any authenticated user   |
+| POST   | `/api/v1/register`                        | FARMER/ADMIN             |
+| GET    | `/api/v1/farms`                           | FARMER(own) / ADMIN(all) |
+| GET    | `/api/v1/farms/{farm_id}`                 | Owner or ADMIN           |
+| DELETE | `/api/v1/farms/{farm_id}`                 | Owner or ADMIN           |
+| POST   | `/api/v1/calculate`                       | Owner or ADMIN           |
+| GET    | `/api/v1/farms/{farm_id}/latest-analysis` | Owner or ADMIN           |
+| POST   | `/api/v1/analyze`                         | Any authenticated user   |
+| POST   | `/api/v1/satellite/indices`               | Any authenticated user   |
+| GET    | `/api/v1/farms/{farm_id}/water-map`       | Owner or ADMIN           |
+| GET    | `/api/v1/telegram-link/{farmer_id}`       | Owner or ADMIN           |
+| GET    | `/api/v1/metrics/summary`                 | Any authenticated user   |
+| GET    | `/api/v1/metrics/farmer/{farmer_id}`      | Owner or ADMIN           |
+| POST   | `/api/v1/feedback`                        | Owner or ADMIN           |
+| GET    | `/api/v1/feedback/farmer/{farmer_id}`     | Owner or ADMIN           |
+| GET    | `/api/v1/admin/dashboard`                 | ADMIN only               |
+| GET    | `/api/v1/admin/farmers`                   | ADMIN only               |
+| POST   | `/api/v1/admin/trigger-weekly`            | ADMIN only               |
 
 ---
 
@@ -369,6 +371,12 @@ Returns the authenticated user's profile.
 | **Path**   | `/api/v1/calculate` |
 | **Auth**   | Bearer token        |
 
+**Query params:**
+
+| Param           | Type | Default | Description                                                     |
+| --------------- | ---- | ------- | --------------------------------------------------------------- |
+| `force_refresh` | bool | `false` | If `true`, bypasses cache and fetches fresh provider data again |
+
 **Request body:**
 
 ```json
@@ -380,10 +388,11 @@ Returns the authenticated user's profile.
 The system:
 
 1. Looks up the farmer's profile from the database
-2. Fetches NDVI/NDMI from Sentinel Hub
-3. Fetches 7-day weather forecast from Open-Meteo
-4. Runs the FAO-56 calculation
-5. Logs an AlertRecord in the database
+2. First checks persistent cache for same analysis key
+3. Fetches NDVI/NDMI from Sentinel Hub (only when cache miss / force refresh)
+4. Fetches 7-day weather forecast from Open-Meteo
+5. Runs the FAO-56 calculation
+6. Logs an AlertRecord in the database
 
 **Response 200:**
 
@@ -417,7 +426,9 @@ The system:
   "stress_mode": false,
   "survival_litres": null,
   "recommendation": "SKIP",
-  "explanation": "NDVI=0.5667 (Δ-0.0054), NDMI=0.1674. Phase: Floraison ..."
+  "explanation": "NDVI=0.5667 (Δ-0.0054), NDMI=0.1674. Phase: Floraison ...",
+  "from_cache": false,
+  "cached_at": null
 }
 ```
 
@@ -425,6 +436,41 @@ The system:
 | -------------------- | ---- | ----------------------------------------- |
 | `farmer_not_found`   | 404  | Unknown farmer_id                         |
 | `incomplete_profile` | 422  | Missing polygon, age, soil, or tree_count |
+
+---
+
+### 6b. Latest Saved Analysis
+
+|            |                                           |
+| ---------- | ----------------------------------------- |
+| **Method** | `GET`                                     |
+| **Path**   | `/api/v1/farms/{farm_id}/latest-analysis` |
+| **Auth**   | Bearer token                              |
+
+Returns the most recent persisted analysis for a farm without calling providers again.
+
+Use this endpoint to load the analysis page quickly, then trigger a fresh run only when needed.
+
+**Response 200:**
+
+```json
+{
+  "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "generated_at": "2026-03-08T10:11:12.123456",
+  "analysis": {
+    "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+    "recommendation": "IRRIGATE",
+    "from_cache": true,
+    "cached_at": "2026-03-08T10:11:12.123456"
+  }
+}
+```
+
+| Error               | Code | When                          |
+| ------------------- | ---- | ----------------------------- |
+| `farmer_not_found`  | 404  | Unknown farm id               |
+| `not_your_farm`     | 403  | Non-admin accesses other farm |
+| `no_saved_analysis` | 404  | No cached analysis yet        |
 
 ---
 
@@ -535,12 +581,13 @@ Returns a **spatial map** of water stress inside one farm for a selected date ra
 
 **Query params:**
 
-| Param           | Type   | Default     | Description                 |
-| --------------- | ------ | ----------- | --------------------------- |
-| `start_date`    | string | 30 days ago | `YYYY-MM-DD`                |
-| `end_date`      | string | today       | `YYYY-MM-DD`                |
-| `max_cloud_pct` | float  | `20`        | Cloud filter (0–100)        |
-| `grid_size`     | int    | `20`        | Map resolution (8–40 cells) |
+| Param           | Type   | Default     | Description                    |
+| --------------- | ------ | ----------- | ------------------------------ |
+| `start_date`    | string | 30 days ago | `YYYY-MM-DD`                   |
+| `end_date`      | string | today       | `YYYY-MM-DD`                   |
+| `max_cloud_pct` | float  | `20`        | Cloud filter (0–100)           |
+| `grid_size`     | int    | `20`        | Map resolution (8–40 cells)    |
+| `force_refresh` | bool   | `false`     | If `true`, bypasses cached map |
 
 **Example request:**
 
@@ -576,6 +623,8 @@ Authorization: Bearer <token>
     "avg_ndvi": 0.3218,
     "avg_stress_score": 0.2913
   },
+  "from_cache": false,
+  "cached_at": null,
   "cells": [
     {
       "id": "r0_c0",
@@ -1067,8 +1116,21 @@ const { farm_id } = await res.json();
 
 ### 4. Calculate + Display
 
+Load saved analysis first, then run a fresh provider analysis only on user action.
+
 ```javascript
-const res = await fetch(`${API_BASE}/calculate`, {
+// 1) Fast path: use latest saved analysis (no provider call)
+const latest = await fetch(`${API_BASE}/farms/${farm_id}/latest-analysis`, {
+  headers,
+});
+
+if (latest.ok) {
+  const latestPayload = await latest.json();
+  // latestPayload.analysis
+}
+
+// 2) User clicks "Run new analysis" => force fresh run
+const res = await fetch(`${API_BASE}/calculate?force_refresh=true`, {
   method: "POST",
   headers,
   body: JSON.stringify({ farmer_id: farm_id }),
@@ -1076,6 +1138,7 @@ const res = await fetch(`${API_BASE}/calculate`, {
 const data = await res.json();
 // data.recommendation → "SKIP" | "IRRIGATE" | "URGENT"
 // data.litres_per_tree, data.total_litres, data.stress_mode, etc.
+// data.from_cache, data.cached_at
 ```
 
 ### 5. Telegram Link
@@ -1101,6 +1164,7 @@ const mapData = await fetch(
 //   MEDIUM -> orange
 //   LOW    -> green
 // Use mapData.summary for KPI cards (high/medium/low cells)
+// mapData.from_cache, mapData.cached_at
 ```
 
 ### 7. Dashboard Metrics

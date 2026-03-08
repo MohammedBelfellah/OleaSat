@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_admin, hash_password, verify_password, create_access_token
 from app.database import get_db
-from app.models import AlertRecord, FarmerFeedback, FarmerProfile, User
+from app.models import AnalysisCache, AlertRecord, FarmerFeedback, FarmerProfile, User, WaterMapCache
 from app.schemas import (
     AdminDashboardResponse,
     AnalyzeRequest,
@@ -24,6 +24,7 @@ from app.schemas import (
     FarmListItem,
     FarmerOut,
     HealthResponse,
+    LatestAnalysisResponse,
     MetricsFarmerResponse,
     MetricsSummaryResponse,
     RegisterRequest,
@@ -39,6 +40,14 @@ from app.services import get_satellite_features, get_water_stress_map, run_pipel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _resolve_window(start_date: str | None, end_date: str | None) -> tuple[str, str]:
+    """Resolve analysis date window to deterministic YYYY-MM-DD strings."""
+    today = datetime.now(tz=timezone.utc).date()
+    resolved_end = end_date or today.isoformat()
+    resolved_start = start_date or (today - timedelta(days=30)).isoformat()
+    return resolved_start, resolved_end
 
 
 # ---------- Health ----------
@@ -196,6 +205,7 @@ def register_farm(
              summary="Calculate irrigation for a registered farmer")
 def calculate(
     payload: CalculateRequest,
+    force_refresh: bool = Query(default=False, description="If true, bypass cache and run a fresh analysis"),
     db: Session = Depends(get_db),
     _user=Depends(get_current_user),
 ) -> CalculateResponse:
@@ -228,6 +238,27 @@ def calculate(
 
     polygon = json.loads(farmer.polygon_json)
 
+    window_start, window_end = _resolve_window(start_date=None, end_date=None)
+    max_cloud_pct = 20.0
+
+    if not force_refresh:
+        cached = (
+            db.query(AnalysisCache)
+            .filter(
+                AnalysisCache.farm_id == farmer.id,
+                AnalysisCache.start_date == window_start,
+                AnalysisCache.end_date == window_end,
+                AnalysisCache.max_cloud_pct == round(max_cloud_pct, 2),
+            )
+            .order_by(AnalysisCache.created_at.desc())
+            .first()
+        )
+        if cached:
+            cached_result = json.loads(cached.result_json)
+            cached_result["from_cache"] = True
+            cached_result["cached_at"] = cached.created_at.isoformat()
+            return CalculateResponse(**cached_result)
+
     result = run_pipeline(
         farm_id=farmer.id,
         polygon=polygon,
@@ -236,7 +267,34 @@ def calculate(
         soil_type=farmer.soil_type,
         spacing_m2=farmer.spacing_m2 or 100.0,
         irrigation_efficiency=farmer.irrigation_efficiency or 0.9,
+        start_date=window_start,
+        end_date=window_end,
+        max_cloud_pct=max_cloud_pct,
     )
+
+    cache_row = (
+        db.query(AnalysisCache)
+        .filter(
+            AnalysisCache.farm_id == farmer.id,
+            AnalysisCache.start_date == window_start,
+            AnalysisCache.end_date == window_end,
+            AnalysisCache.max_cloud_pct == round(max_cloud_pct, 2),
+        )
+        .first()
+    )
+    if cache_row:
+        cache_row.result_json = json.dumps(result, ensure_ascii=True)
+        cache_row.created_at = datetime.now(timezone.utc)
+    else:
+        db.add(
+            AnalysisCache(
+                farm_id=farmer.id,
+                start_date=window_start,
+                end_date=window_end,
+                max_cloud_pct=round(max_cloud_pct, 2),
+                result_json=json.dumps(result, ensure_ascii=True),
+            )
+        )
 
     # Log alert record
     alert = AlertRecord(
@@ -257,7 +315,52 @@ def calculate(
     farmer.last_alert_at = datetime.now(timezone.utc)
     db.commit()
 
+    result["from_cache"] = False
+    result["cached_at"] = None
     return CalculateResponse(**result)
+
+
+@router.get(
+    "/farms/{farm_id}/latest-analysis",
+    response_model=LatestAnalysisResponse,
+    tags=["Irrigation"],
+    summary="Get latest saved analysis for a farm",
+)
+def get_latest_analysis(
+    farm_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> LatestAnalysisResponse:
+    """Return the most recent persisted analysis without re-calling providers.
+
+    Frontend can use this endpoint to render `/analysis` quickly and only run
+    a fresh analysis when the user explicitly requests it.
+    """
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farm_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if user.role != "ADMIN" and farmer.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    cached = (
+        db.query(AnalysisCache)
+        .filter(AnalysisCache.farm_id == farm_id)
+        .order_by(AnalysisCache.created_at.desc())
+        .first()
+    )
+    if not cached:
+        raise HTTPException(status_code=404, detail="no_saved_analysis")
+
+    analysis_data = json.loads(cached.result_json)
+    analysis_data["from_cache"] = True
+    analysis_data["cached_at"] = cached.created_at.isoformat()
+
+    return LatestAnalysisResponse(
+        farm_id=farm_id,
+        generated_at=cached.created_at.isoformat(),
+        analysis=CalculateResponse(**analysis_data),
+    )
 
 
 # ---------- Analyze (direct, no DB lookup) ----------
@@ -317,6 +420,7 @@ def farm_water_map(
     end_date: str | None = Query(default=None, description="YYYY-MM-DD"),
     max_cloud_pct: float = Query(default=20, ge=0, le=100),
     grid_size: int = Query(default=20, ge=8, le=40, description="Target map resolution in cells"),
+    force_refresh: bool = Query(default=False, description="If true, bypass cache and run a fresh map query"),
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ) -> WaterStressMapResponse:
@@ -341,16 +445,71 @@ def farm_water_map(
         raise HTTPException(status_code=422, detail={"error": "incomplete_profile", "missing_fields": ["polygon"]})
 
     polygon = json.loads(farmer.polygon_json)
+    window_start, window_end = _resolve_window(start_date=start_date, end_date=end_date)
+    cloud_key = round(float(max_cloud_pct), 2)
+    grid_key = int(grid_size)
+
+    if not force_refresh:
+        cached = (
+            db.query(WaterMapCache)
+            .filter(
+                WaterMapCache.farm_id == farm_id,
+                WaterMapCache.start_date == window_start,
+                WaterMapCache.end_date == window_end,
+                WaterMapCache.grid_size == grid_key,
+                WaterMapCache.max_cloud_pct == cloud_key,
+            )
+            .order_by(WaterMapCache.created_at.desc())
+            .first()
+        )
+        if cached:
+            cached_result = json.loads(cached.result_json)
+            return WaterStressMapResponse(
+                farm_id=farm_id,
+                from_cache=True,
+                cached_at=cached.created_at.isoformat(),
+                **cached_result,
+            )
+
     result = get_water_stress_map(
         polygon=polygon,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=window_start,
+        end_date=window_end,
         max_cloud_pct=max_cloud_pct,
         grid_size=grid_size,
     )
 
+    cache_row = (
+        db.query(WaterMapCache)
+        .filter(
+            WaterMapCache.farm_id == farm_id,
+            WaterMapCache.start_date == window_start,
+            WaterMapCache.end_date == window_end,
+            WaterMapCache.grid_size == grid_key,
+            WaterMapCache.max_cloud_pct == cloud_key,
+        )
+        .first()
+    )
+    if cache_row:
+        cache_row.result_json = json.dumps(result, ensure_ascii=True)
+        cache_row.created_at = datetime.now(timezone.utc)
+    else:
+        db.add(
+            WaterMapCache(
+                farm_id=farm_id,
+                start_date=window_start,
+                end_date=window_end,
+                grid_size=grid_key,
+                max_cloud_pct=cloud_key,
+                result_json=json.dumps(result, ensure_ascii=True),
+            )
+        )
+    db.commit()
+
     return WaterStressMapResponse(
         farm_id=farm_id,
+        from_cache=False,
+        cached_at=None,
         **result,
     )
 

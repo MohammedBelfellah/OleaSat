@@ -157,6 +157,9 @@ export default function DashboardPage() {
             <Link className={styles.topLink} href="/farms/new">
               + New farm
             </Link>
+            <Link className={styles.topLink} href="/analysis">
+              Analysis
+            </Link>
             <Link className={styles.topLink} href="/auth/me">
               Profile
             </Link>
@@ -270,6 +273,7 @@ export default function DashboardPage() {
 
             <div className={styles.quickLinks}>
               <Link href="/farms/new">Add a farm</Link>
+              <Link href="/analysis">Run analysis</Link>
               <Link href="/auth/me">Manage account</Link>
             </div>
           </aside>

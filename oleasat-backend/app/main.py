@@ -89,7 +89,7 @@ TAGS_METADATA = [
 
 app = FastAPI(
     title="OleaBot API",
-    version="1.2.0",
+    version="1.3.0",
     description=DESCRIPTION,
     openapi_tags=TAGS_METADATA,
     contact={"name": "OleaBot Team"},

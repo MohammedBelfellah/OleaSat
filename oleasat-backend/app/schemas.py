@@ -132,6 +132,9 @@ class CalculateResponse(BaseModel):
     # Recommendation
     recommendation: str
     explanation: str
+    # Cache metadata
+    from_cache: bool = False
+    cached_at: Optional[str] = None
 
 
 class AnalyzeRequest(BaseModel):
@@ -185,6 +188,9 @@ class AnalyzeResponse(BaseModel):
     # Recommendation
     recommendation: str
     explanation: str
+    # Cache metadata
+    from_cache: bool = False
+    cached_at: Optional[str] = None
 
 
 class SatelliteIndicesRequest(BaseModel):
@@ -242,6 +248,14 @@ class WaterStressMapResponse(BaseModel):
     legend: Dict[str, str]
     summary: WaterStressSummary
     cells: List[WaterStressMapCell]
+    from_cache: bool = False
+    cached_at: Optional[str] = None
+
+
+class LatestAnalysisResponse(BaseModel):
+    farm_id: str
+    generated_at: str
+    analysis: CalculateResponse
 
 
 # ---------- Metrics (Spec §5.3) ----------

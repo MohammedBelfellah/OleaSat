@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     ForeignKey,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -173,3 +174,69 @@ class FarmerFeedback(Base):
 
     def __repr__(self) -> str:
         return f"<FarmerFeedback id={self.id} farmer={self.farmer_id} type={self.feedback_type}>"
+
+
+class AnalysisCache(Base):
+    """Persistent cache for full farm analysis results.
+
+    Keyed by farm + analysis time window + cloud filter.
+    """
+
+    __tablename__ = "analysis_cache"
+    __table_args__ = (
+        UniqueConstraint(
+            "farm_id",
+            "start_date",
+            "end_date",
+            "max_cloud_pct",
+            name="uq_analysis_cache_key",
+        ),
+    )
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    farm_id = Column(String(36), ForeignKey("farmer_profiles.id"), nullable=False, index=True)
+    start_date = Column(String(10), nullable=False)
+    end_date = Column(String(10), nullable=False)
+    max_cloud_pct = Column(Float, nullable=False, default=20.0)
+    result_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+    def __repr__(self) -> str:
+        return (
+            f"<AnalysisCache farm={self.farm_id} "
+            f"window={self.start_date}:{self.end_date} cloud={self.max_cloud_pct}>"
+        )
+
+
+class WaterMapCache(Base):
+    """Persistent cache for farm spatial water-stress maps.
+
+    Keyed by farm + map time window + grid + cloud filter.
+    """
+
+    __tablename__ = "water_map_cache"
+    __table_args__ = (
+        UniqueConstraint(
+            "farm_id",
+            "start_date",
+            "end_date",
+            "grid_size",
+            "max_cloud_pct",
+            name="uq_water_map_cache_key",
+        ),
+    )
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    farm_id = Column(String(36), ForeignKey("farmer_profiles.id"), nullable=False, index=True)
+    start_date = Column(String(10), nullable=False)
+    end_date = Column(String(10), nullable=False)
+    grid_size = Column(Integer, nullable=False, default=20)
+    max_cloud_pct = Column(Float, nullable=False, default=20.0)
+    result_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+    def __repr__(self) -> str:
+        return (
+            f"<WaterMapCache farm={self.farm_id} "
+            f"window={self.start_date}:{self.end_date} grid={self.grid_size} cloud={self.max_cloud_pct}>"
+        )

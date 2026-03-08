@@ -99,14 +99,17 @@ export default function Home() {
         </section>
 
         <section className={styles.nextStep}>
-          <h2>Step 3: Farm registration</h2>
-          <p>After authentication, create your first farm profile:</p>
+          <h2>Implemented routes</h2>
+          <p>After authentication, register farms and run irrigation analysis:</p>
           <div className={styles.linkRow}>
             <Link className={styles.linkPill} href="/dashboard">
               Dashboard
             </Link>
             <Link className={styles.linkPill} href="/farms/new">
               Register farm (/register)
+            </Link>
+            <Link className={styles.linkPill} href="/analysis">
+              Analysis (/calculate + /water-map)
             </Link>
             <Link className={styles.linkPill} href="/auth/register">
               Register

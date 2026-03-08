@@ -1,11 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import styles from "./page.module.css";
 import { ApiError, type RegisterFarmRequest, registerFarm } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+
+const ParcelDrawMap = dynamic(() => import("@/components/maps/ParcelDrawMap"), {
+  ssr: false,
+  loading: () => <div className={styles.mapLoading}>Loading map tools...</div>,
+});
+
+type PolygonInputMode = "map" | "text";
 
 const SAMPLE_POLYGON: number[][] = [
   [-3.8895, 37.7798],
@@ -31,26 +39,26 @@ function prettyPolygon(points: number[][]): string {
   return JSON.stringify(points, null, 2);
 }
 
-function parsePolygonInput(raw: string): number[][] {
+function parsePolygonText(raw: string): number[][] {
   const parsed = JSON.parse(raw) as unknown;
   if (!Array.isArray(parsed) || parsed.length < 3) {
-    throw new Error("Polygon must be an array of at least 3 [lon, lat] points.");
+    throw new Error("Polygon must be an array with at least 3 points.");
   }
 
-  const points = parsed.map((point) => {
+  return parsed.map((point) => {
     if (!Array.isArray(point) || point.length < 2) {
-      throw new Error("Each point must be [longitude, latitude].");
+      throw new Error("Each polygon point must be [longitude, latitude].");
     }
 
     const lon = Number(point[0]);
     const lat = Number(point[1]);
+
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
-      throw new Error("Polygon coordinates must be numbers.");
+      throw new Error("Longitude and latitude values must be numbers.");
     }
+
     return [lon, lat];
   });
-
-  return points;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -80,6 +88,8 @@ export default function FarmRegistrationPage() {
   const [treeCount, setTreeCount] = useState(String(INITIAL_FORM.tree_count));
   const [spacingM2, setSpacingM2] = useState(String(INITIAL_FORM.spacing_m2));
   const [irrigationEfficiency, setIrrigationEfficiency] = useState(String(INITIAL_FORM.irrigation_efficiency));
+  const [polygonMode, setPolygonMode] = useState<PolygonInputMode>("map");
+  const [polygonPoints, setPolygonPoints] = useState<number[][]>(INITIAL_FORM.polygon);
   const [polygonText, setPolygonText] = useState(prettyPolygon(INITIAL_FORM.polygon));
 
   const [pending, setPending] = useState(false);
@@ -87,13 +97,44 @@ export default function FarmRegistrationPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [farmId, setFarmId] = useState<string | null>(null);
 
-  const pointCount = useMemo(() => {
+  const pointCount = polygonPoints.length;
+
+  function setPolygon(points: number[][]) {
+    setPolygonPoints(points);
+    setPolygonText(prettyPolygon(points));
+  }
+
+  function addPoint(point: [number, number]) {
+    setPolygonPoints((prev) => {
+      const next = [...prev, point];
+      setPolygonText(prettyPolygon(next));
+      return next;
+    });
+  }
+
+  function undoPoint() {
+    setPolygon(polygonPoints.slice(0, -1));
+  }
+
+  function clearPoints() {
+    setPolygon([]);
+  }
+
+  function setSamplePolygon() {
+    setPolygon(SAMPLE_POLYGON);
+  }
+
+  function applyPolygonText() {
     try {
-      return parsePolygonInput(polygonText).length;
-    } catch {
-      return 0;
+      const parsed = parsePolygonText(polygonText);
+      setPolygonPoints(parsed);
+      setSuccessMessage(`Polygon applied from text (${parsed.length} points).`);
+      setErrorMessage(null);
+    } catch (error) {
+      setErrorMessage(toErrorMessage(error));
+      setSuccessMessage(null);
     }
-  }, [polygonText]);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -108,6 +149,12 @@ export default function FarmRegistrationPage() {
         throw new Error("No access token found. Login first before creating a farm.");
       }
 
+      let polygon = polygonPoints;
+      if (polygonMode === "text") {
+        polygon = parsePolygonText(polygonText);
+        setPolygonPoints(polygon);
+      }
+
       const payload: RegisterFarmRequest = {
         farmer_name: farmerName.trim(),
         phone: phone.trim(),
@@ -117,7 +164,7 @@ export default function FarmRegistrationPage() {
         tree_count: Number(treeCount),
         spacing_m2: Number(spacingM2),
         irrigation_efficiency: Number(irrigationEfficiency),
-        polygon: parsePolygonInput(polygonText),
+        polygon,
       };
 
       if (!payload.farmer_name || payload.farmer_name.length < 2) {
@@ -134,6 +181,9 @@ export default function FarmRegistrationPage() {
       }
       if (!Number.isFinite(payload.irrigation_efficiency) || payload.irrigation_efficiency < 0.5 || payload.irrigation_efficiency > 1) {
         throw new Error("Irrigation efficiency must be between 0.5 and 1.0.");
+      }
+      if (payload.polygon.length < 3) {
+        throw new Error("Draw at least 3 points on the map to create a valid polygon.");
       }
 
       const response = await registerFarm(token, payload);
@@ -262,16 +312,46 @@ export default function FarmRegistrationPage() {
             </div>
 
             <div className={styles.field}>
-              <label htmlFor="polygon">Polygon coordinates (JSON array of [lon, lat])</label>
-              <textarea
-                id="polygon"
-                value={polygonText}
-                onChange={(event) => setPolygonText(event.target.value)}
-                rows={9}
-                spellCheck={false}
-                required
-              />
+              <label>Polygon status</label>
+              <p className={styles.meta}>Points ready: <code>{pointCount}</code></p>
             </div>
+
+            <div className={styles.modeSwitch}>
+              <button
+                className={`${styles.modeButton} ${polygonMode === "map" ? styles.modeButtonActive : ""}`}
+                onClick={() => setPolygonMode("map")}
+                type="button"
+              >
+                Map draw
+              </button>
+              <button
+                className={`${styles.modeButton} ${polygonMode === "text" ? styles.modeButtonActive : ""}`}
+                onClick={() => setPolygonMode("text")}
+                type="button"
+              >
+                Text input
+              </button>
+            </div>
+
+            {polygonMode === "text" && (
+              <div className={styles.field}>
+                <label htmlFor="polygon-text">Polygon coordinates (JSON)</label>
+                <textarea
+                  id="polygon-text"
+                  value={polygonText}
+                  onChange={(event) => setPolygonText(event.target.value)}
+                  rows={7}
+                  spellCheck={false}
+                  placeholder="[[lon, lat], [lon, lat], [lon, lat]]"
+                />
+                <div className={styles.textTools}>
+                  <button className={styles.secondaryButton} type="button" onClick={applyPolygonText}>
+                    Apply text polygon
+                  </button>
+                  <p className={styles.textHint}>Format: <code>[[longitude, latitude], ...]</code></p>
+                </div>
+              </div>
+            )}
 
             <div className={styles.actions}>
               <button className={styles.primaryButton} disabled={pending} type="submit">
@@ -279,10 +359,16 @@ export default function FarmRegistrationPage() {
               </button>
               <button
                 className={styles.secondaryButton}
-                onClick={() => setPolygonText(prettyPolygon(SAMPLE_POLYGON))}
+                onClick={setSamplePolygon}
                 type="button"
               >
                 Use sample polygon
+              </button>
+              <button className={styles.secondaryButton} onClick={undoPoint} type="button" disabled={pointCount === 0}>
+                Undo last point
+              </button>
+              <button className={styles.secondaryButton} onClick={clearPoints} type="button" disabled={pointCount === 0}>
+                Clear drawing
               </button>
             </div>
 
@@ -297,22 +383,21 @@ export default function FarmRegistrationPage() {
 
           <div className={styles.links}>
             <Link href="/auth/me">Back to profile</Link>
+            <Link href="/analysis">Go to analysis</Link>
             <Link href="/">Home</Link>
           </div>
         </section>
 
         <section className={styles.mapMock}>
           <header className={styles.mapHeader}>
-            <p>Parcel Draft</p>
-            <span>{pointCount} points</span>
+            <p>Farm border drawing</p>
+            <span>{pointCount} points selected</span>
           </header>
 
           <div className={styles.mapCanvas}>
-            <div className={styles.hex}></div>
-            <div className={styles.hexOutline}></div>
-            <div className={styles.pin}></div>
+            <ParcelDrawMap points={polygonPoints as [number, number][]} onAddPoint={addPoint} className={styles.mapLeaflet} />
             <div className={styles.bottomHint}>
-              Map drawing integration can be added next with Leaflet or Google Maps.
+              Click map to add each border point. Use Text input mode if you already have coordinates.
             </div>
           </div>
         </section>

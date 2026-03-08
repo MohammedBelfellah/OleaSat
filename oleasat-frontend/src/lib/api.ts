@@ -96,6 +96,110 @@ export type FarmDetailResponse = {
   last_alert?: AlertSnapshot | null;
 };
 
+export type MetricsFarmerResponse = {
+  farmer: {
+    id: string;
+    state?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    tree_age?: string | null;
+    soil_type?: string | null;
+    tree_count?: number | null;
+    spacing_m2?: number | null;
+    irrigation_efficiency?: number | null;
+    created_at?: string | null;
+    last_alert_at?: string | null;
+  };
+  alerts: AlertSnapshot[];
+};
+
+export type CalculateResponse = {
+  farm_id: string;
+  ndvi_current: number;
+  ndvi_delta: number;
+  ndmi_current: number;
+  cloud_pct: number;
+  date_used: string;
+  images_used: number;
+  source: string;
+  note?: string | null;
+  window_start: string;
+  window_end: string;
+  et0_week: number;
+  rain_week: number;
+  p_eff: number;
+  kc_applied: number;
+  ir_mm: number;
+  phase_label: string;
+  is_critical_phase: boolean;
+  soil_factor: number;
+  irrigation_efficiency: number;
+  litres_per_tree_net: number;
+  total_litres_net: number;
+  litres_per_tree: number;
+  total_litres: number;
+  total_m3: number;
+  stress_mode: boolean;
+  survival_litres?: number | null;
+  recommendation: string;
+  explanation: string;
+  from_cache?: boolean;
+  cached_at?: string | null;
+};
+
+export type LatestFarmAnalysisResponse = {
+  farm_id: string;
+  generated_at: string;
+  analysis: CalculateResponse;
+};
+
+export type WaterStressMapCell = {
+  id: string;
+  polygon: number[][];
+  centroid: number[];
+  ndmi: number;
+  ndvi: number;
+  stress_score: number;
+  stress_level: string;
+  water_priority: string;
+  irrigation_factor: number;
+};
+
+export type WaterStressSummary = {
+  cells_total: number;
+  cells_in_polygon: number;
+  high_stress_cells: number;
+  medium_stress_cells: number;
+  low_stress_cells: number;
+  avg_ndmi: number;
+  avg_ndvi: number;
+  avg_stress_score: number;
+};
+
+export type WaterStressMapResponse = {
+  farm_id: string;
+  source: string;
+  note?: string | null;
+  window_start: string;
+  window_end: string;
+  max_cloud_pct: number;
+  grid_width: number;
+  grid_height: number;
+  legend: Record<string, string>;
+  summary: WaterStressSummary;
+  cells: WaterStressMapCell[];
+  from_cache?: boolean;
+  cached_at?: string | null;
+};
+
+export type WaterMapQuery = {
+  start_date?: string;
+  end_date?: string;
+  max_cloud_pct?: number;
+  grid_size?: number;
+  force_refresh?: boolean;
+};
+
 type ApiErrorPayload = {
   detail?: unknown;
 };
@@ -253,6 +357,28 @@ export async function fetchMetricsSummary(
   return (await response.json()) as MetricsSummaryResponse;
 }
 
+export async function fetchMetricsFarmer(
+  token: string,
+  farmerId: string,
+  signal?: AbortSignal,
+): Promise<MetricsFarmerResponse> {
+  const response = await fetch(`${API_BASE_URL}/metrics/farmer/${farmerId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as MetricsFarmerResponse;
+}
+
 export async function fetchFarms(token: string, signal?: AbortSignal): Promise<FarmListItem[]> {
   const response = await fetch(`${API_BASE_URL}/farms`, {
     method: "GET",
@@ -291,4 +417,88 @@ export async function fetchFarmDetail(
   }
 
   return (await response.json()) as FarmDetailResponse;
+}
+
+export async function calculateIrrigation(
+  token: string,
+  farmerId: string,
+  options?: { forceRefresh?: boolean; signal?: AbortSignal },
+): Promise<CalculateResponse> {
+  const params = new URLSearchParams();
+  if (options?.forceRefresh) {
+    params.set("force_refresh", "true");
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+
+  const response = await fetch(`${API_BASE_URL}/calculate${suffix}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify({ farmer_id: farmerId }),
+    signal: options?.signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as CalculateResponse;
+}
+
+export async function fetchLatestFarmAnalysis(
+  token: string,
+  farmId: string,
+  signal?: AbortSignal,
+): Promise<LatestFarmAnalysisResponse> {
+  const response = await fetch(`${API_BASE_URL}/farms/${farmId}/latest-analysis`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as LatestFarmAnalysisResponse;
+}
+
+export async function fetchFarmWaterMap(
+  token: string,
+  farmId: string,
+  query?: WaterMapQuery,
+  signal?: AbortSignal,
+): Promise<WaterStressMapResponse> {
+  const params = new URLSearchParams();
+
+  if (query?.start_date) params.set("start_date", query.start_date);
+  if (query?.end_date) params.set("end_date", query.end_date);
+  if (query?.max_cloud_pct !== undefined) params.set("max_cloud_pct", String(query.max_cloud_pct));
+  if (query?.grid_size !== undefined) params.set("grid_size", String(query.grid_size));
+  if (query?.force_refresh) params.set("force_refresh", "true");
+
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+
+  const response = await fetch(`${API_BASE_URL}/farms/${farmId}/water-map${suffix}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as WaterStressMapResponse;
 }

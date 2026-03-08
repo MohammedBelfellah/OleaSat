@@ -109,6 +109,39 @@
   gap: 10px;
 }
 
+.modeSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.modeButton {
+  border-radius: 10px;
+  border: 1px solid #cad7b7;
+  background: #f8fbf3;
+  color: #304628;
+  padding: 9px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modeButtonActive {
+  border-color: #58783a;
+  background: #eaf4de;
+  color: #25381c;
+}
+
+.textTools {
+  display: grid;
+  gap: 8px;
+}
+
+.textHint {
+  color: #586951;
+  font-size: 0.82rem;
+  margin: 0;
+}
+
 .actions {
   margin-top: 6px;
   display: flex;
@@ -234,6 +267,21 @@
     linear-gradient(180deg, #d7ebce 0%, #b2d4a7 100%);
 }
 
+.mapLeaflet {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+}
+
+.mapLoading {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  color: #334a27;
+  font-weight: 700;
+  background: #e5f1d8;
+}
+
 .hex,
 .hexOutline {
   position: absolute;
@@ -278,6 +326,7 @@
   font-size: 0.83rem;
   max-width: min(90%, 520px);
   text-align: center;
+  pointer-events: none;
 }
 
 @media (max-width: 1050px) {
