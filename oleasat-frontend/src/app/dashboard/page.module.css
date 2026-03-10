@@ -323,6 +323,91 @@
   gap: 10px;
 }
 
+.telegramLayout {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.telegramLead {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.telegramBadge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid #c9dbb2;
+  background: linear-gradient(180deg, #e6f1d9 0%, #dbeaca 100%);
+  color: #3d5a2a;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  padding: 4px 10px;
+}
+
+.telegramLead h3 {
+  color: #1e3016;
+  font-size: clamp(1.3rem, 2.4vw, 2.1rem);
+  line-height: 1.08;
+  max-width: 18ch;
+}
+
+.telegramSteps {
+  margin: 2px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  color: #344a28;
+  font-size: 0.9rem;
+}
+
+.telegramCard {
+  border: 1px solid #d6e2c7;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbf3 100%);
+  box-shadow: 0 16px 30px rgba(47, 65, 34, 0.08);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.telegramQrFrame {
+  border: 1px solid #d2debf;
+  border-radius: 12px;
+  background: #f2f8ea;
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.telegramQrImage {
+  width: min(100%, 260px);
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  border: 1px solid #d8e4cb;
+  background: #ffffff;
+}
+
+.telegramDeepLink {
+  color: #365628;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.telegramHint {
+  color: #6a7664;
+  font-size: 0.82rem;
+}
+
 .resultGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -881,6 +966,14 @@
     grid-template-columns: 1fr;
   }
 
+  .telegramLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .telegramLead h3 {
+    max-width: none;
+  }
+
   .farmsLayout {
     grid-template-columns: 1fr;
   }
@@ -903,5 +996,9 @@
   .ringBlock {
     grid-template-columns: 1fr;
     justify-items: start;
+  }
+
+  .telegramQrFrame {
+    min-height: 220px;
   }
 }

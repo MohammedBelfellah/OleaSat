@@ -10,10 +10,12 @@ import {
   ApiError,
   authMe,
   fetchTelegramLink,
+  fetchTelegramLinkMe,
   fetchFeedbackSummary,
   fetchFarmDetail,
   fetchFarms,
   fetchMetricsSummary,
+  sendAdminTelegramUpdate,
   submitFeedback,
   type FeedbackType,
   type FeedbackSummaryResponse,
@@ -23,6 +25,7 @@ import {
   registerFarm,
   type RegisterFarmRequest,
   type SoilType,
+  type TelegramOwnerLinkResponse,
   type TreeAge,
   type UserOut,
 } from "@/lib/api";
@@ -33,7 +36,7 @@ const ParcelDrawMap = dynamic(() => import("@/components/maps/ParcelDrawMap"), {
   loading: () => <div className={styles.muted}>Loading map tools...</div>,
 });
 
-type RightView = "actions" | "farms" | "feedback" | "profile";
+type RightView = "actions" | "farms" | "telegram" | "feedback" | "profile";
 type FarmPanelView = "list" | "add";
 type AddFarmStep = 1 | 2;
 type PolygonMode = "map" | "text";
@@ -140,9 +143,18 @@ export default function DashboardPage() {
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSubmitMessage, setFeedbackSubmitMessage] = useState<string | null>(null);
 
+  const [telegramLinkLoading, setTelegramLinkLoading] = useState(false);
+  const [telegramLinkError, setTelegramLinkError] = useState<string | null>(null);
+  const [telegramLinkData, setTelegramLinkData] = useState<TelegramOwnerLinkResponse | null>(null);
+  const [telegramOpenMessage, setTelegramOpenMessage] = useState<string | null>(null);
+
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserOut | null>(null);
+  const [telegramMessage, setTelegramMessage] = useState("");
+  const [telegramSending, setTelegramSending] = useState(false);
+  const [telegramError, setTelegramError] = useState<string | null>(null);
+  const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
 
   const loadBase = useCallback(async (signal?: AbortSignal) => {
     setLoadingBase(true);
@@ -152,9 +164,10 @@ export default function DashboardPage() {
       const token = getAccessToken();
       if (!token) throw new Error("No token found. Login first.");
 
-      const [summary, list] = await Promise.all([
+      const [summary, list, me] = await Promise.all([
         fetchMetricsSummary(token, signal),
         fetchFarms(token, signal),
+        authMe(token, signal),
       ]);
 
       const details = await Promise.all(
@@ -170,6 +183,7 @@ export default function DashboardPage() {
       setMetrics(summary);
       setFarms(list);
       setFarmDetails(details);
+      setProfile(me);
       setSelectedFarmId((prev) => prev || list[0]?.id || "");
       setFeedbackFarmId((prev) => prev || list[0]?.id || "");
     } catch (error) {
@@ -190,7 +204,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const nextView = searchParams.get("view");
-    if (nextView === "actions" || nextView === "farms" || nextView === "feedback" || nextView === "profile") {
+    if (
+      nextView === "actions" ||
+      nextView === "farms" ||
+      nextView === "telegram" ||
+      nextView === "feedback" ||
+      nextView === "profile"
+    ) {
       setView(nextView);
     }
   }, [searchParams]);
@@ -323,6 +343,13 @@ export default function DashboardPage() {
     return farmDetails.find((item) => item.farm.id === selectedFarmId) || null;
   }, [selectedFarmId, farmDetails]);
 
+  const isAdmin = profile?.role === "ADMIN";
+
+  const qrCodeUrl = useMemo(() => {
+    if (!telegramLinkData?.telegram_link) return "";
+    return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=12&data=${encodeURIComponent(telegramLinkData.telegram_link)}`;
+  }, [telegramLinkData]);
+
   const stepOneValidationError = useMemo(() => {
     const normalizedName = farmerName.trim();
     const normalizedPhone = phone.trim();
@@ -376,6 +403,26 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadTelegramLink = useCallback(async (signal?: AbortSignal) => {
+    setTelegramLinkLoading(true);
+    setTelegramLinkError(null);
+
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("No token found. Login first.");
+
+      const link = await fetchTelegramLinkMe(token, signal);
+      setTelegramLinkData(link);
+    } catch (error) {
+      if (isAbortRequestError(error)) {
+        return;
+      }
+      setTelegramLinkError(toError(error));
+    } finally {
+      setTelegramLinkLoading(false);
+    }
+  }, []);
+
   const loadProfile = useCallback(async (signal?: AbortSignal) => {
     setProfileLoading(true);
     setProfileError(null);
@@ -403,6 +450,14 @@ export default function DashboardPage() {
     void loadFeedback(feedbackFarmId, controller.signal);
     return () => controller.abort();
   }, [view, feedbackFarmId, loadFeedback]);
+
+  useEffect(() => {
+    if (view !== "telegram") return;
+
+    const controller = new AbortController();
+    void loadTelegramLink(controller.signal);
+    return () => controller.abort();
+  }, [view, loadTelegramLink]);
 
   async function onSubmitFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -436,21 +491,86 @@ export default function DashboardPage() {
     }
   }
 
-  async function onOpenFeedbackTelegram() {
-    if (!feedbackFarmId) return;
+  async function openTelegramChatForFarm(farmId: string): Promise<{ linked: boolean } | null> {
+    if (!farmId) return null;
 
-    setFeedbackError(null);
-    setFeedbackSubmitMessage(null);
+    const token = getAccessToken();
+    if (!token) throw new Error("No token found. Login first.");
+
+    const link = await fetchTelegramLink(token, farmId);
+    window.open(link.telegram_link, "_blank", "noopener,noreferrer");
+    return { linked: link.linked };
+  }
+
+  async function onOpenTelegramConnection() {
+    if (!telegramLinkData?.telegram_link) {
+      await loadTelegramLink();
+    }
+
+    setTelegramLinkError(null);
+    setTelegramOpenMessage(null);
 
     try {
       const token = getAccessToken();
       if (!token) throw new Error("No token found. Login first.");
 
-      const link = await fetchTelegramLink(token, feedbackFarmId);
+      const link = telegramLinkData ?? (await fetchTelegramLinkMe(token));
       window.open(link.telegram_link, "_blank", "noopener,noreferrer");
-      setFeedbackSubmitMessage(link.linked ? "Telegram linked. Chat opened." : "Telegram link opened.");
+
+      setTelegramOpenMessage(link.linked ? "Linked chat opened." : "Telegram link opened.");
+      setTelegramLinkData(link);
+      await loadTelegramLink();
     } catch (error) {
-      setFeedbackError(toError(error));
+      setTelegramLinkError(toError(error));
+    }
+  }
+
+  async function onOpenSelectedFarmTelegram() {
+    if (!selectedFarmId) return;
+
+    setTelegramError(null);
+    setTelegramSuccess(null);
+
+    try {
+      const opened = await openTelegramChatForFarm(selectedFarmId);
+      if (!opened) return;
+      setTelegramSuccess(opened.linked ? "Linked chat opened." : "Telegram link opened.");
+    } catch (error) {
+      setTelegramError(toError(error));
+    }
+  }
+
+  async function onSendAdminTelegramUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFarmId || !isAdmin) return;
+
+    const cleanMessage = telegramMessage.trim();
+    if (!cleanMessage) {
+      setTelegramError("Message cannot be empty.");
+      setTelegramSuccess(null);
+      return;
+    }
+
+    setTelegramSending(true);
+    setTelegramError(null);
+    setTelegramSuccess(null);
+
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("No token found. Login first.");
+
+      const result = await sendAdminTelegramUpdate(token, {
+        farmer_id: selectedFarmId,
+        message: cleanMessage,
+      });
+
+      setTelegramSuccess(result.message || "Telegram update sent.");
+      setTelegramMessage("");
+      await loadBase();
+    } catch (error) {
+      setTelegramError(toError(error));
+    } finally {
+      setTelegramSending(false);
     }
   }
 
@@ -461,6 +581,15 @@ export default function DashboardPage() {
     void loadProfile(controller.signal);
     return () => controller.abort();
   }, [view, loadProfile]);
+
+  useEffect(() => {
+    setTelegramError(null);
+    setTelegramSuccess(null);
+  }, [selectedFarmId]);
+
+  useEffect(() => {
+    setTelegramOpenMessage(null);
+  }, [telegramLinkData?.owner_id]);
 
   function setPolygon(points: number[][]) {
     setPolygonPoints(points);
@@ -599,6 +728,13 @@ export default function DashboardPage() {
               >
                 Farms management
               </button>
+              <button
+                type="button"
+                className={view === "telegram" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
+                onClick={() => setView("telegram")}
+              >
+                Telegram connection
+              </button>
               <Link className={styles.navLink} href="/dashboard/analysis">
                 Analyze history
               </Link>
@@ -634,6 +770,8 @@ export default function DashboardPage() {
                     ? "Farmer workspace"
                     : view === "farms"
                       ? "Farms management"
+                      : view === "telegram"
+                        ? "Telegram connection"
                       : view === "feedback"
                         ? "Feedback"
                         : "Profile"}
@@ -643,8 +781,10 @@ export default function DashboardPage() {
                     ? "Clean dashboard with quick access to your key actions."
                     : view === "farms"
                       ? "Review all farms, open details, and add a new farm in two steps."
+                      : view === "telegram"
+                        ? "Link each farm to its own Telegram chat with QR and direct link."
                       : view === "feedback"
-                        ? "Check farmer feedback summary directly inside dashboard."
+                        ? "Collect farmer reviews only. Telegram linking now lives in its own section."
                         : "View your account profile and sign out from one place."}
                 </p>
               </div>
@@ -882,6 +1022,47 @@ export default function DashboardPage() {
                               </div>
                             )}
                           </div>
+
+                          {isAdmin && (
+                            <div className={styles.lastAlertBlock}>
+                              <h4>Admin Telegram update</h4>
+                              <form className={styles.feedbackComposer} onSubmit={onSendAdminTelegramUpdate}>
+                                <label className={`${styles.fieldBlock} ${styles.fieldWide}`}>
+                                  Message to this farmer
+                                  <textarea
+                                    rows={3}
+                                    value={telegramMessage}
+                                    onChange={(event) => setTelegramMessage(event.target.value)}
+                                    placeholder="Write a specific update for this farmer..."
+                                  />
+                                </label>
+
+                                <div className={styles.inlineActions}>
+                                  <button
+                                    type="submit"
+                                    className={styles.primaryBtn}
+                                    disabled={telegramSending || !selectedFarmDetail.farm.telegram_linked}
+                                  >
+                                    {telegramSending ? "Sending..." : "Send Telegram update"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.secondaryBtn}
+                                    onClick={() => void onOpenSelectedFarmTelegram()}
+                                    disabled={!selectedFarmDetail.farm.telegram_linked}
+                                  >
+                                    Open farmer chat
+                                  </button>
+                                </div>
+                              </form>
+
+                              {!selectedFarmDetail.farm.telegram_linked && (
+                                <p className={styles.muted}>This farm is not linked to Telegram yet.</p>
+                              )}
+                              {telegramError && <p className={styles.errorInline}>{telegramError}</p>}
+                              {telegramSuccess && <p className={styles.successInline}>{telegramSuccess}</p>}
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -1043,19 +1224,73 @@ export default function DashboardPage() {
               </section>
             )}
 
+            {view === "telegram" && (
+              <section className={styles.panel}>
+                <div className={styles.telegramLayout}>
+                  <div className={styles.telegramLead}>
+                    <span className={styles.telegramBadge}>Telegram</span>
+                    <h3>Connect one Telegram chat for all your farms</h3>
+                    <p className={styles.muted}>
+                      Connect your profile once. If your account has multiple farms, they all use the same Telegram chat.
+                    </p>
+
+                    <p className={styles.navHint}>
+                      {telegramLinkData
+                        ? `Profile farms covered: ${telegramLinkData.farms_count}`
+                        : `Profile farms covered: ${farms.length}`}
+                    </p>
+
+                    <ol className={styles.telegramSteps}>
+                      <li>Scan the QR code or click Open in Telegram.</li>
+                      <li>Tap Start in Telegram chat to link your profile.</li>
+                      <li>Receive alerts for all farms in this account.</li>
+                    </ol>
+                  </div>
+
+                  <div className={styles.telegramCard}>
+                    <div className={styles.telegramQrFrame}>
+                      {telegramLinkLoading && <p className={styles.muted}>Generating QR code...</p>}
+                      {!telegramLinkLoading && telegramLinkData && qrCodeUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={qrCodeUrl} alt="Telegram link QR code" className={styles.telegramQrImage} />
+                      )}
+                      {!telegramLinkLoading && !telegramLinkData && <p className={styles.muted}>Generating profile link...</p>}
+                    </div>
+
+                    <button
+                      type="button"
+                      className={styles.primaryBtn}
+                      onClick={() => void onOpenTelegramConnection()}
+                      disabled={telegramLinkLoading || !telegramLinkData?.telegram_link}
+                    >
+                      Open in Telegram
+                    </button>
+
+                    {telegramLinkData?.telegram_link && (
+                      <a
+                        className={styles.telegramDeepLink}
+                        href={telegramLinkData.telegram_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {telegramLinkData.telegram_link}
+                      </a>
+                    )}
+
+                    <p className={styles.telegramHint}>You will be redirected to Telegram mobile or desktop app.</p>
+                  </div>
+                </div>
+
+                {telegramLinkError && <p className={styles.errorInline}>{telegramLinkError}</p>}
+                {telegramOpenMessage && <p className={styles.successInline}>{telegramOpenMessage}</p>}
+              </section>
+            )}
+
             {view === "feedback" && (
               <section className={styles.panel}>
                 <div className={styles.panelHeader}>
                   <h3>Feedback overview</h3>
                   <div className={styles.inlineActions}>
-                    <button
-                      type="button"
-                      className={styles.secondaryBtn}
-                      onClick={onOpenFeedbackTelegram}
-                      disabled={!feedbackFarmId}
-                    >
-                      Open Telegram chat
-                    </button>
                     <button
                       type="button"
                       className={styles.secondaryBtn}

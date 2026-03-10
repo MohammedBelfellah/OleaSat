@@ -89,6 +89,18 @@ class TelegramLinkResponse(BaseModel):
     linked: bool
 
 
+class TelegramOwnerLinkResponse(BaseModel):
+    owner_id: str
+    telegram_link: str
+    linked: bool
+    farms_count: int
+
+
+class TelegramDirectMessageRequest(BaseModel):
+    farmer_id: str
+    message: str = Field(min_length=1, max_length=4000)
+
+
 class StatusMessageResponse(BaseModel):
     status: str
     message: str

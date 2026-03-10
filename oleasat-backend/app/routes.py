@@ -37,6 +37,8 @@ from app.schemas import (
     SatelliteIndicesResponse,
     StatusMessageResponse,
     TelegramLinkResponse,
+    TelegramOwnerLinkResponse,
+    TelegramDirectMessageRequest,
     WaterStressMapResponse,
     UserOut,
 )
@@ -980,12 +982,36 @@ def get_farmer_feedback(
 
 # ---------- Telegram deep-link ----------
 
+@router.get("/telegram-link/me", response_model=TelegramOwnerLinkResponse, tags=["Telegram"],
+            summary="Generate Telegram deep-link for current user profile")
+def telegram_link_me(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> TelegramOwnerLinkResponse:
+    """Returns a profile-level deep-link for Telegram connection.
+
+    The same link is used once per user profile, and the bot links the same
+    chat to all farms owned by this user.
+    """
+    farms = db.query(FarmerProfile).filter(FarmerProfile.owner_id == user.id).all()
+    if not farms:
+        raise HTTPException(status_code=404, detail="no_farms_registered")
+
+    link = f"https://t.me/OleaSat_bot?start=owner_{user.id}"
+    linked = any(farm.telegram_chat_id is not None for farm in farms)
+    return TelegramOwnerLinkResponse(
+        owner_id=user.id,
+        telegram_link=link,
+        linked=linked,
+        farms_count=len(farms),
+    )
+
 @router.get("/telegram-link/{farmer_id}", response_model=TelegramLinkResponse, tags=["Telegram"],
             summary="Generate Telegram deep-link for a farmer")
 def telegram_link(
     farmer_id: str,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    user=Depends(get_current_user),
 ) -> TelegramLinkResponse:
     """Returns a `https://t.me/OleaSat_bot?start={farmer_id}` deep-link URL.
 
@@ -998,12 +1024,58 @@ def telegram_link(
     if not farmer:
         raise HTTPException(status_code=404, detail="farmer_not_found")
 
-    link = f"https://t.me/OleaSat_bot?start={farmer_id}"
+    if user.role != "ADMIN" and farmer.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    owner_id = farmer.owner_id
+    if owner_id:
+        owner_farms = db.query(FarmerProfile).filter(FarmerProfile.owner_id == owner_id).all()
+        linked = any(item.telegram_chat_id is not None for item in owner_farms)
+        link = f"https://t.me/OleaSat_bot?start=owner_{owner_id}"
+    else:
+        linked = farmer.telegram_chat_id is not None
+        link = f"https://t.me/OleaSat_bot?start={farmer_id}"
+
     return TelegramLinkResponse(
         farmer_id=farmer_id,
         telegram_link=link,
-        linked=farmer.telegram_chat_id is not None,
+        linked=linked,
     )
+
+
+@router.post("/admin/telegram/send", response_model=StatusMessageResponse, tags=["Admin"],
+             summary="Send a direct Telegram update to one farmer")
+async def admin_send_telegram_update(
+    payload: TelegramDirectMessageRequest,
+    db: Session = Depends(get_db),
+    _user=Depends(require_admin),
+) -> StatusMessageResponse:
+    """Send a custom one-off message to a single farmer's linked Telegram chat.
+
+    Requires ADMIN role and a farm with Telegram already linked.
+    """
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == payload.farmer_id).first()
+    if not farmer:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if not farmer.telegram_chat_id:
+        raise HTTPException(status_code=409, detail="telegram_not_linked")
+
+    clean_message = payload.message.strip()
+    if not clean_message:
+        raise HTTPException(status_code=422, detail="message_empty")
+
+    farm_name = (farmer.farmer_name or farmer.id).strip()
+    message = f"Update for farm '{farm_name}':\n{clean_message}"
+
+    from app.bot import send_plain_message
+
+    success = await send_plain_message(farmer.telegram_chat_id, message)
+    if not success:
+        raise HTTPException(status_code=502, detail="telegram_send_failed")
+
+    logger.info("Admin sent direct Telegram update to farm %s", farmer.id)
+    return StatusMessageResponse(status="ok", message="Telegram update sent")
 
 
 # ---------- Farms (list / detail / delete) ----------

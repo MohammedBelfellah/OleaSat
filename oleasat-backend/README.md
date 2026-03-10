@@ -180,6 +180,7 @@ FastAPI auto-generates interactive documentation:
 | POST   | `/api/v1/analyze`                         | Any authenticated user   |
 | POST   | `/api/v1/satellite/indices`               | Any authenticated user   |
 | GET    | `/api/v1/farms/{farm_id}/water-map`       | Owner or ADMIN           |
+| GET    | `/api/v1/telegram-link/me`                | Any authenticated user   |
 | GET    | `/api/v1/telegram-link/{farmer_id}`       | Owner or ADMIN           |
 | GET    | `/api/v1/metrics/summary`                 | Any authenticated user   |
 | GET    | `/api/v1/metrics/farmer/{farmer_id}`      | Owner or ADMIN           |
@@ -187,6 +188,7 @@ FastAPI auto-generates interactive documentation:
 | GET    | `/api/v1/feedback/farmer/{farmer_id}`     | Owner or ADMIN           |
 | GET    | `/api/v1/admin/dashboard`                 | ADMIN only               |
 | GET    | `/api/v1/admin/farmers`                   | ADMIN only               |
+| POST   | `/api/v1/admin/telegram/send`             | ADMIN only               |
 | POST   | `/api/v1/admin/trigger-weekly`            | ADMIN only               |
 
 ---
@@ -366,7 +368,7 @@ Returns the authenticated user's profile.
 }
 ```
 
-> ⚠️ **Save the `farm_id`** — you need it for `/calculate`, `/telegram-link/{id}`, and `/metrics/farmer/{id}`.
+> ⚠️ **Save the `farm_id`** — you need it for `/calculate` and `/metrics/farmer/{id}`. For Telegram profile linking, use `/telegram-link/me`.
 
 ---
 
@@ -770,7 +772,40 @@ Authorization: Bearer <token>
 
 ---
 
-### 10. Telegram Deep-Link
+### 10. Telegram Deep-Link (Profile)
+
+|            |                            |
+| ---------- | -------------------------- |
+| **Method** | `GET`                      |
+| **Path**   | `/api/v1/telegram-link/me` |
+| **Auth**   | Bearer token               |
+
+Generates a profile-level Telegram deep-link URL. One linked Telegram chat is shared by all farms owned by that profile.
+
+**Response 200:**
+
+```json
+{
+  "owner_id": "7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
+  "telegram_link": "https://t.me/OleaSat_bot?start=owner_7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
+  "linked": true,
+  "farms_count": 3
+}
+```
+
+| Field           | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
+| `telegram_link` | URL the user opens to connect Telegram once for profile      |
+| `linked`        | `true` if at least one owned farm is already Telegram-linked |
+| `farms_count`   | Number of farms covered by the same profile chat             |
+
+| Error                 | Code | When                  |
+| --------------------- | ---- | --------------------- |
+| `no_farms_registered` | 404  | User has no farms yet |
+
+---
+
+### 10b. Telegram Deep-Link (Farm Compatibility)
 
 |            |                                     |
 | ---------- | ----------------------------------- |
@@ -778,14 +813,14 @@ Authorization: Bearer <token>
 | **Path**   | `/api/v1/telegram-link/{farmer_id}` |
 | **Auth**   | Bearer token                        |
 
-Generates a Telegram deep-link URL for a farmer. The frontend displays this as a button or QR code.
+Generates a Telegram deep-link URL from a farm id. If the farm has an owner profile, it returns the same profile-level link (`owner_{user_id}`) so all owned farms share one chat.
 
 **Response 200:**
 
 ```json
 {
   "farmer_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
-  "telegram_link": "https://t.me/OleaSat_bot?start=36201fe0-4deb-4809-bdab-01b47593e4be",
+  "telegram_link": "https://t.me/OleaSat_bot?start=owner_7f48a7ce-053d-4b4d-87b8-6ffd70b6fa15",
   "linked": false
 }
 ```
@@ -1005,13 +1040,15 @@ Sets `survival_litres = litres_per_tree × 0.35` (minimum to protect flowers/fru
 
 The bot is **notification-only** — farmers register via the web app, then link their Telegram to receive weekly alerts.
 
+Linking is **profile-level**: one Telegram chat can be connected once and shared across all farms owned by that account.
+
 ### Flow
 
 ```
 1. Farmer registers via web app        →  POST /register → farm_id
-2. Frontend fetches deep-link           →  GET /telegram-link/{farm_id}
-3. Farmer clicks t.me/OleaSat_bot?start={farm_id}
-4. Bot receives /start {farm_id}        →  saves telegram_chat_id in DB
+2. Frontend fetches deep-link           →  GET /telegram-link/me
+3. Farmer clicks t.me/OleaSat_bot?start=owner_{user_id}
+4. Bot receives /start owner_{user_id}  →  saves same telegram_chat_id on all owned farms
 5. Every Sunday 07:00                   →  scheduler runs pipeline + sends alert
 ```
 
@@ -1084,7 +1121,7 @@ oleasat-backend/
     ├── main.py               # FastAPI app + CORS + lifespan (bot + scheduler)
     ├── config.py             # Settings from environment variables
     ├── auth.py               # JWT + bcrypt + get_current_user dependency
-    ├── routes.py             # 24 API endpoints with auth + RBAC
+    ├── routes.py             # 26 API endpoints with auth + RBAC
     ├── services.py           # Business logic (Satellite + Weather + FAO-56)
     ├── ai_messages.py        # Groq-powered AI personalization (with fallback)
     ├── schemas.py            # Pydantic request/response models
@@ -1281,10 +1318,11 @@ const runDetail = await fetch(
 ### 5. Telegram Link
 
 ```javascript
-const res = await fetch(`${API_BASE}/telegram-link/${farm_id}`, { headers });
-const { telegram_link, linked } = await res.json();
+const res = await fetch(`${API_BASE}/telegram-link/me`, { headers });
+const { telegram_link, linked, farms_count } = await res.json();
 // Show telegram_link as a button or QR code
 // linked === true → already connected
+// farms_count === number of farms covered by the same profile chat
 ```
 
 ### 6. Water Stress Map (Leaflet / Mapbox)

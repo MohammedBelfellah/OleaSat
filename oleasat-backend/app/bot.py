@@ -45,12 +45,16 @@ _app: Optional[Application] = None
 # ---------------------------------------------------------------------------
 
 async def _start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """/start {farmer_id} — deep-link binding + language choice."""
+    """/start {payload} — deep-link binding + language choice.
+
+    Supported payload formats:
+    - `{farmer_id}` for a specific farm profile
+    - `owner_{user_id}` for profile-level linking (all owned farms)
+    """
     chat_id = str(update.effective_chat.id)
 
-    # Extract farmer_id from deep-link payload
-    farmer_id: str | None = context.args[0] if context.args else None
-    if not farmer_id:
+    payload: str | None = context.args[0] if context.args else None
+    if not payload:
         await update.message.reply_text(
             link_error(), parse_mode=ParseMode.MARKDOWN_V2,
         )
@@ -58,24 +62,76 @@ async def _start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     db = SessionLocal()
     try:
-        farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farmer_id).first()
+        owner_id: str | None = None
+        farmer_id_for_lang: str | None = None
+
+        if payload.startswith("owner_"):
+            owner_id = payload.removeprefix("owner_").strip()
+            if not owner_id:
+                await update.message.reply_text(link_error(), parse_mode=ParseMode.MARKDOWN_V2)
+                return
+            farmer = (
+                db.query(FarmerProfile)
+                .filter(FarmerProfile.owner_id == owner_id)
+                .order_by(FarmerProfile.created_at.asc())
+                .first()
+            )
+            farmer_id_for_lang = f"owner_{owner_id}"
+        else:
+            farmer = db.query(FarmerProfile).filter(FarmerProfile.id == payload).first()
+            farmer_id_for_lang = payload
+            owner_id = farmer.owner_id if farmer else None
+
         if not farmer:
             await update.message.reply_text(
                 link_error(), parse_mode=ParseMode.MARKDOWN_V2,
             )
             return
 
-        if farmer.telegram_chat_id == chat_id:
+        owner_farms = [farmer]
+        if owner_id:
+            owner_farms = db.query(FarmerProfile).filter(FarmerProfile.owner_id == owner_id).all()
+
+        linked_farmer = db.query(FarmerProfile).filter(FarmerProfile.telegram_chat_id == chat_id).first()
+        if linked_farmer and owner_id and linked_farmer.owner_id != owner_id:
+            await update.message.reply_text(
+                "This Telegram chat is already linked to another profile.",
+            )
+            return
+        if linked_farmer and not owner_id and linked_farmer.id != farmer.id:
+            await update.message.reply_text(
+                "This Telegram chat is already linked to another farm profile.",
+            )
+            return
+
+        already_linked_all = all(f.telegram_chat_id == chat_id for f in owner_farms)
+        if already_linked_all:
             await update.message.reply_text(
                 already_linked(farmer.farmer_name or "Agriculteur"),
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
             return
 
-        # Bind chat_id to farmer
-        farmer.telegram_chat_id = chat_id
+        owner_has_other_chat = any(
+            f.telegram_chat_id is not None and f.telegram_chat_id != chat_id
+            for f in owner_farms
+        )
+        if owner_has_other_chat:
+            await update.message.reply_text(
+                "This profile is already linked to another Telegram chat.",
+            )
+            return
+
+        # Bind same chat to all farms in the same owner profile.
+        for owner_farm in owner_farms:
+            owner_farm.telegram_chat_id = chat_id
         db.commit()
-        logger.info("Linked farmer %s → Telegram chat %s", farmer_id, chat_id)
+        logger.info(
+            "Linked owner profile %s (%d farms) → Telegram chat %s",
+            owner_id or farmer.id,
+            len(owner_farms),
+            chat_id,
+        )
 
         # Send welcome message
         await update.message.reply_text(
@@ -86,8 +142,8 @@ async def _start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Ask language preference
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🇫🇷 Français", callback_data=f"lang:FR:{farmer_id}"),
-                InlineKeyboardButton("🇲🇦 Darija", callback_data=f"lang:DARIJA:{farmer_id}"),
+                InlineKeyboardButton("🇫🇷 Français", callback_data=f"lang:FR:{farmer_id_for_lang}"),
+                InlineKeyboardButton("🇲🇦 Darija", callback_data=f"lang:DARIJA:{farmer_id_for_lang}"),
             ],
         ])
         await update.message.reply_text(
@@ -112,20 +168,33 @@ async def _language_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE
     if len(parts) != 3:
         return
 
-    _, lang, farmer_id = parts
+    _, lang, target_id = parts
     if lang not in ("FR", "DARIJA"):
         return
 
     db = SessionLocal()
     try:
-        farmer = db.query(FarmerProfile).filter(FarmerProfile.id == farmer_id).first()
-        if not farmer:
-            await query.edit_message_text("❌ Erreur — profil introuvable\\.", parse_mode=ParseMode.MARKDOWN_V2)
-            return
+        updated = 0
+        if target_id.startswith("owner_"):
+            owner_id = target_id.removeprefix("owner_").strip()
+            farms = db.query(FarmerProfile).filter(FarmerProfile.owner_id == owner_id).all()
+            if not farms:
+                await query.edit_message_text("❌ Erreur — profil introuvable\\.", parse_mode=ParseMode.MARKDOWN_V2)
+                return
+            for farm in farms:
+                farm.language = lang
+            updated = len(farms)
+            logger.info("Owner %s set language %s for %d farms", owner_id, lang, updated)
+        else:
+            farmer = db.query(FarmerProfile).filter(FarmerProfile.id == target_id).first()
+            if not farmer:
+                await query.edit_message_text("❌ Erreur — profil introuvable\\.", parse_mode=ParseMode.MARKDOWN_V2)
+                return
+            farmer.language = lang
+            updated = 1
+            logger.info("Farmer %s chose language: %s", target_id, lang)
 
-        farmer.language = lang
         db.commit()
-        logger.info("Farmer %s chose language: %s", farmer_id, lang)
 
         if lang == "DARIJA":
             await query.edit_message_text(
@@ -212,6 +281,22 @@ async def send_alert(chat_id: str, message: str) -> bool:
         return True
     except Exception as exc:
         logger.error("Failed to send alert to %s: %s", chat_id, exc)
+        return False
+
+
+async def send_plain_message(chat_id: str, message: str) -> bool:
+    """Send a plain text message to a chat. Returns True on success."""
+    if _app is None:
+        logger.error("Bot not initialised — cannot send direct message to %s", chat_id)
+        return False
+    try:
+        await _app.bot.send_message(
+            chat_id=int(chat_id),
+            text=message,
+        )
+        return True
+    except Exception as exc:
+        logger.error("Failed to send direct message to %s: %s", chat_id, exc)
         return False
 
 

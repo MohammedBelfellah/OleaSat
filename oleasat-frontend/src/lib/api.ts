@@ -63,6 +63,18 @@ export type TelegramLinkResponse = {
   linked: boolean;
 };
 
+export type TelegramOwnerLinkResponse = {
+  owner_id: string;
+  telegram_link: string;
+  linked: boolean;
+  farms_count: number;
+};
+
+export type TelegramDirectMessageRequest = {
+  farmer_id: string;
+  message: string;
+};
+
 export type MetricsSummaryResponse = {
   farmers_active: number;
   alerts_sent_this_week: number;
@@ -807,6 +819,27 @@ export async function fetchTelegramLink(
   return (await response.json()) as TelegramLinkResponse;
 }
 
+export async function fetchTelegramLinkMe(
+  token: string,
+  signal?: AbortSignal,
+): Promise<TelegramOwnerLinkResponse> {
+  const response = await fetch(`${API_BASE_URL}/telegram-link/me`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as TelegramOwnerLinkResponse;
+}
+
 export async function submitFeedback(
   token: string,
   payload: FeedbackCreateRequest,
@@ -905,6 +938,29 @@ export async function triggerWeeklyJob(
       Authorization: `Bearer ${token}`,
     },
     cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as StatusMessageResponse;
+}
+
+export async function sendAdminTelegramUpdate(
+  token: string,
+  payload: TelegramDirectMessageRequest,
+  signal?: AbortSignal,
+): Promise<StatusMessageResponse> {
+  const response = await fetch(`${API_BASE_URL}/admin/telegram/send`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
     signal,
   });
 
