@@ -60,6 +60,22 @@
   font-size: 0.88rem;
 }
 
+.topNavRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.topNavRow a {
+  border-radius: 999px;
+  border: 1px solid #cad7b7;
+  background: #f3f8ea;
+  color: #2e4424;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
 .form {
   display: grid;
   gap: 10px;
@@ -203,21 +219,6 @@
 
 .meta code {
   overflow-wrap: anywhere;
-}
-
-.links {
-  display: flex;
-  gap: 12px;
-}
-
-.links a {
-  border-radius: 999px;
-  border: 1px solid #cad7b7;
-  background: #f3f8ea;
-  color: #2e4424;
-  font-size: 0.84rem;
-  font-weight: 700;
-  padding: 8px 12px;
 }
 
 .mapMock {

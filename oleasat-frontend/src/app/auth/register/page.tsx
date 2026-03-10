@@ -45,9 +45,9 @@ export default function RegisterPage() {
         password,
       });
       saveAccessToken(response.access_token);
-      setSuccessMessage("Account created. Redirecting to profile...");
+      setSuccessMessage("Account created. Redirecting to dashboard...");
       window.setTimeout(() => {
-        router.push("/auth/me");
+        router.push("/dashboard");
       }, 400);
     } catch (error) {
       setErrorMessage(toRegisterErrorMessage(error));
@@ -130,9 +130,6 @@ export default function RegisterPage() {
           <div className={styles.linksRow}>
             <Link className={styles.linkPill} href="/auth/login">
               Already registered? Login
-            </Link>
-            <Link className={styles.linkPill} href="/auth/me">
-              Open profile page
             </Link>
             <Link className={styles.linkPill} href="/">
               Back to home

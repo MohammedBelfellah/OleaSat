@@ -1,0 +1,164 @@
+.page {
+  min-height: 100vh;
+  padding: 20px;
+  background: linear-gradient(180deg, #f4f1e6 0%, #ece9db 100%);
+}
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.topbar {
+  border: 1px solid #d8e2cb;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kicker {
+  color: #4f6a39;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.topbar h1 {
+  color: #1d2d14;
+}
+
+.sub {
+  color: #64755b;
+  margin-top: 4px;
+}
+
+.links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.links a {
+  border-radius: 999px;
+  border: 1px solid #c8d7b2;
+  background: #f4f9ed;
+  color: #2b4420;
+  font-weight: 700;
+  font-size: 0.84rem;
+  padding: 8px 12px;
+}
+
+.error {
+  border: 1px solid #e8c0ba;
+  border-radius: 12px;
+  background: #fbe8e6;
+  color: #8d3024;
+  padding: 10px 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid #d8e2cb;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 14px;
+}
+
+.card h3 {
+  color: #1f3117;
+}
+
+.form {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.form label {
+  display: grid;
+  gap: 5px;
+  color: #3f5136;
+  font-size: 0.84rem;
+}
+
+.form input,
+.form select,
+.form textarea {
+  border: 1px solid #cad8b7;
+  border-radius: 10px;
+  background: #f8fbf4;
+  color: #203219;
+  padding: 9px;
+}
+
+.row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.primary,
+.secondary {
+  border: 0;
+  border-radius: 10px;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
+.primary {
+  background: linear-gradient(180deg, #6c9149 0%, #5d7d3e 100%);
+  color: #fff;
+}
+
+.secondary {
+  background: #d8e6c5;
+  color: #26401a;
+}
+
+.blockTitle {
+  margin-top: 14px;
+}
+
+.code {
+  margin-top: 8px;
+  border: 1px solid #d9e2cc;
+  border-radius: 10px;
+  background: #f8fbf4;
+  padding: 10px;
+  max-height: 360px;
+  overflow: auto;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    flex-direction: column;
+  }
+}

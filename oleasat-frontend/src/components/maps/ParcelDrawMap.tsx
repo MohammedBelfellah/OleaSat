@@ -2,10 +2,10 @@
 
 import { useEffect } from "react";
 
-import { LatLngBounds } from "leaflet";
+import { DivIcon, LatLngBounds } from "leaflet";
 import {
-  CircleMarker,
   MapContainer,
+  Marker,
   Polygon,
   Polyline,
   TileLayer,
@@ -18,11 +18,18 @@ type LonLat = [number, number];
 type ParcelDrawMapProps = {
   points: LonLat[];
   onAddPoint: (point: LonLat) => void;
+  onMovePoint?: (index: number, point: LonLat) => void;
   className?: string;
 };
 
-const DEFAULT_CENTER: [number, number] = [31.7917, -7.0926];
-const DEFAULT_ZOOM = 6;
+const DEFAULT_CENTER: [number, number] = [35.2, -5.3];
+const DEFAULT_ZOOM = 7;
+const vertexIcon = new DivIcon({
+  className: "",
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+  html: '<span style="display:block;width:14px;height:14px;border-radius:999px;border:2px solid #284118;background:#8bb765;"></span>',
+});
 
 function toLatLng(point: LonLat): [number, number] {
   return [point[1], point[0]];
@@ -51,7 +58,7 @@ function FitToPoints({ points }: { points: LonLat[] }) {
   return null;
 }
 
-export default function ParcelDrawMap({ points, onAddPoint, className }: ParcelDrawMapProps) {
+export default function ParcelDrawMap({ points, onAddPoint, onMovePoint, className }: ParcelDrawMapProps) {
   const positions = points.map((point) => toLatLng(point));
 
   return (
@@ -79,11 +86,22 @@ export default function ParcelDrawMap({ points, onAddPoint, className }: ParcelD
       )}
 
       {positions.map((position, index) => (
-        <CircleMarker
+        <Marker
           key={`${position[0]}-${position[1]}-${index}`}
-          center={position}
-          radius={6}
-          pathOptions={{ color: "#284118", fillColor: "#8bb765", fillOpacity: 0.95, weight: 2 }}
+          position={position}
+          icon={vertexIcon}
+          draggable={Boolean(onMovePoint)}
+          eventHandlers={
+            onMovePoint
+              ? {
+                  dragend(event) {
+                    const marker = event.target;
+                    const next = marker.getLatLng();
+                    onMovePoint(index, [next.lng, next.lat]);
+                  },
+                }
+              : undefined
+          }
         />
       ))}
     </MapContainer>

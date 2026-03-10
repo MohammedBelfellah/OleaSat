@@ -41,9 +41,9 @@ export default function LoginPage() {
     try {
       const response = await authLogin({ email, password });
       saveAccessToken(response.access_token);
-      setSuccessMessage("Login successful. Redirecting to your profile...");
+      setSuccessMessage("Login successful. Redirecting to dashboard...");
       window.setTimeout(() => {
-        router.push("/auth/me");
+        router.push("/dashboard");
       }, 400);
     } catch (error) {
       setErrorMessage(toLoginErrorMessage(error));
@@ -64,7 +64,7 @@ export default function LoginPage() {
           </p>
           <ul className={styles.storyList}>
             <li>Secure session using JWT bearer token</li>
-            <li>Fast handoff to profile validation on `/auth/me`</li>
+            <li>Fast handoff directly to dashboard</li>
             <li>Same account used for farm and dashboard features</li>
           </ul>
         </section>
@@ -114,9 +114,6 @@ export default function LoginPage() {
           <div className={styles.linksRow}>
             <Link className={styles.linkPill} href="/auth/register">
               Need an account? Register
-            </Link>
-            <Link className={styles.linkPill} href="/auth/me">
-              Open profile page
             </Link>
             <Link className={styles.linkPill} href="/">
               Back to home

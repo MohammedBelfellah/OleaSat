@@ -1,21 +1,48 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import styles from "./page.module.css";
 import {
   ApiError,
-  type FarmDetailResponse,
-  type FarmListItem,
-  type MetricsSummaryResponse,
+  authMe,
+  fetchFeedbackSummary,
   fetchFarmDetail,
   fetchFarms,
   fetchMetricsSummary,
+  type FeedbackSummaryResponse,
+  type FarmDetailResponse,
+  type FarmListItem,
+  type MetricsSummaryResponse,
+  registerFarm,
+  type RegisterFarmRequest,
+  type SoilType,
+  type TreeAge,
+  type UserOut,
 } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { clearAccessToken, getAccessToken } from "@/lib/auth";
 
-function toDashboardError(error: unknown): string {
+const ParcelDrawMap = dynamic(() => import("@/components/maps/ParcelDrawMap"), {
+  ssr: false,
+  loading: () => <div className={styles.muted}>Loading map tools...</div>,
+});
+
+type RightView = "actions" | "farms" | "feedback" | "profile";
+type FarmPanelView = "list" | "add";
+type AddFarmStep = 1 | 2;
+type PolygonMode = "map" | "text";
+
+const SAMPLE_POLYGON: number[][] = [
+  [-5.58, 35.78],
+  [-5.53, 35.79],
+  [-5.5, 35.75],
+  [-5.56, 35.73],
+];
+
+function toError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.detail === "Invalid or expired token") {
       return "Session expired. Please login again.";
@@ -28,50 +55,100 @@ function toDashboardError(error: unknown): string {
   return "Unexpected dashboard error";
 }
 
-function fmtNumber(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
+function isAbortRequestError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+  if (error instanceof Error) {
+    return error.message.toLowerCase().includes("aborted");
+  }
+  return false;
 }
 
-function fmtOneDecimal(value: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+function fmt(value: number, digits = 1): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(value);
 }
 
-function barHeightClass(percent: number, stylesObj: Record<string, string>): string {
-  if (percent >= 90) return stylesObj.barH90;
-  if (percent >= 80) return stylesObj.barH80;
-  if (percent >= 70) return stylesObj.barH70;
-  if (percent >= 60) return stylesObj.barH60;
-  if (percent >= 50) return stylesObj.barH50;
-  if (percent >= 40) return stylesObj.barH40;
-  if (percent >= 30) return stylesObj.barH30;
-  if (percent >= 20) return stylesObj.barH20;
-  return stylesObj.barH12;
+function prettyPolygon(points: number[][]): string {
+  return JSON.stringify(points, null, 2);
+}
+
+function parsePolygonText(raw: string): number[][] {
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed) || parsed.length < 3) {
+    throw new Error("Polygon must be an array with at least 3 points.");
+  }
+
+  return parsed.map((point) => {
+    if (!Array.isArray(point) || point.length < 2) {
+      throw new Error("Each polygon point must be [longitude, latitude].");
+    }
+
+    const lon = Number(point[0]);
+    const lat = Number(point[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      throw new Error("Polygon coordinates must be valid numbers.");
+    }
+
+    return [lon, lat];
+  });
 }
 
 export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<RightView>("actions");
+  const [farmPanelView, setFarmPanelView] = useState<FarmPanelView>("list");
+  const [selectedFarmId, setSelectedFarmId] = useState("");
+  const [feedbackFarmId, setFeedbackFarmId] = useState("");
+
+  const [loadingBase, setLoadingBase] = useState(true);
+  const [baseError, setBaseError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<MetricsSummaryResponse | null>(null);
   const [farms, setFarms] = useState<FarmListItem[]>([]);
   const [farmDetails, setFarmDetails] = useState<FarmDetailResponse[]>([]);
 
-  async function loadDashboard(signal?: AbortSignal) {
-    setLoading(true);
-    setErrorMessage(null);
+  const [addFarmStep, setAddFarmStep] = useState<AddFarmStep>(1);
+  const [polygonMode, setPolygonMode] = useState<PolygonMode>("map");
+
+  const [farmerName, setFarmerName] = useState("Oliveira Nord");
+  const [phone, setPhone] = useState("+212600000000");
+  const [cropType, setCropType] = useState("olive");
+  const [treeAge, setTreeAge] = useState<TreeAge>("ADULT");
+  const [soilType, setSoilType] = useState<SoilType>("MEDIUM");
+  const [treeCount, setTreeCount] = useState("120");
+  const [spacingM2, setSpacingM2] = useState("100");
+  const [efficiency, setEfficiency] = useState("0.9");
+  const [polygonPoints, setPolygonPoints] = useState<number[][]>(SAMPLE_POLYGON);
+  const [polygonText, setPolygonText] = useState(prettyPolygon(SAMPLE_POLYGON));
+
+  const [registeringFarm, setRegisteringFarm] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
+
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummaryResponse | null>(null);
+
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserOut | null>(null);
+
+  const loadBase = useCallback(async (signal?: AbortSignal) => {
+    setLoadingBase(true);
+    setBaseError(null);
 
     try {
       const token = getAccessToken();
-      if (!token) {
-        throw new Error("No token found. Login first to open the dashboard.");
-      }
+      if (!token) throw new Error("No token found. Login first.");
 
-      const [summary, farmList] = await Promise.all([
+      const [summary, list] = await Promise.all([
         fetchMetricsSummary(token, signal),
         fetchFarms(token, signal),
       ]);
 
       const details = await Promise.all(
-        farmList.map(async (farm) => {
+        list.map(async (farm) => {
           try {
             return await fetchFarmDetail(token, farm.id, signal);
           } catch {
@@ -81,225 +158,800 @@ export default function DashboardPage() {
       );
 
       setMetrics(summary);
-      setFarms(farmList);
+      setFarms(list);
       setFarmDetails(details);
+      setSelectedFarmId((prev) => prev || list[0]?.id || "");
+      setFeedbackFarmId((prev) => prev || list[0]?.id || "");
     } catch (error) {
-      setErrorMessage(toDashboardError(error));
+      if (isAbortRequestError(error)) {
+        return;
+      }
+      setBaseError(toError(error));
     } finally {
-      setLoading(false);
+      setLoadingBase(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      void loadDashboard(controller.signal);
-    }, 0);
+    void loadBase(controller.signal);
+    return () => controller.abort();
+  }, [loadBase]);
 
-    return () => {
-      controller.abort();
-      window.clearTimeout(timeoutId);
-    };
-  }, []);
+  useEffect(() => {
+    const nextView = searchParams.get("view");
+    if (nextView === "actions" || nextView === "farms" || nextView === "feedback" || nextView === "profile") {
+      setView(nextView);
+    }
+  }, [searchParams]);
 
-  const derived = useMemo(() => {
-    const totalHectares = farms.reduce((sum, farm) => {
+  useEffect(() => {
+    if (!selectedFarmId && farms[0]?.id) {
+      setSelectedFarmId(farms[0].id);
+      return;
+    }
+
+    if (selectedFarmId && !farms.find((farm) => farm.id === selectedFarmId)) {
+      setSelectedFarmId(farms[0]?.id || "");
+    }
+  }, [selectedFarmId, farms]);
+
+  useEffect(() => {
+    if (!feedbackFarmId && farms[0]?.id) {
+      setFeedbackFarmId(farms[0].id);
+      return;
+    }
+
+    if (feedbackFarmId && !farms.find((farm) => farm.id === feedbackFarmId)) {
+      setFeedbackFarmId(farms[0]?.id || "");
+    }
+  }, [feedbackFarmId, farms]);
+
+  const summary = useMemo(() => {
+    const totalHectares = farms.reduce((acc, farm) => {
       const trees = farm.tree_count ?? 0;
       const spacing = farm.spacing_m2 ?? 0;
-      return sum + (trees * spacing) / 10000;
+      return acc + (trees * spacing) / 10000;
     }, 0);
 
-    const actionable = farmDetails
-      .filter((item) => item.last_alert)
-      .sort((a, b) => {
-        const aStress = a.last_alert?.stress_mode ? 1 : 0;
-        const bStress = b.last_alert?.stress_mode ? 1 : 0;
-        if (bStress !== aStress) return bStress - aStress;
+    const stressCount = farmDetails.filter((item) => item.last_alert?.stress_mode).length;
+    return { totalHectares, stressCount };
+  }, [farms, farmDetails]);
 
-        const aLitres = a.last_alert?.litres_per_tree ?? 0;
-        const bLitres = b.last_alert?.litres_per_tree ?? 0;
-        return bLitres - aLitres;
-      });
+  const selectedFarmDetail = useMemo(() => {
+    if (!selectedFarmId) return null;
+    return farmDetails.find((item) => item.farm.id === selectedFarmId) || null;
+  }, [selectedFarmId, farmDetails]);
 
-    const stressCount = actionable.filter((item) => item.last_alert?.stress_mode).length;
-    const nextFarm = actionable[0];
+  const stepOneValidationError = useMemo(() => {
+    const normalizedName = farmerName.trim();
+    const normalizedPhone = phone.trim();
+    const parsedTreeCount = Number(treeCount);
+    const parsedSpacing = Number(spacingM2);
+    const parsedEfficiency = Number(efficiency);
 
-    const trendSource = actionable
-      .map((item) => item.last_alert)
-      .filter((item): item is NonNullable<FarmDetailResponse["last_alert"]> => Boolean(item))
-      .slice(0, 7)
-      .reverse();
+    if (!normalizedName || normalizedName.length < 2) {
+      return "Farmer name must contain at least 2 characters.";
+    }
+    if (!normalizedPhone || normalizedPhone.length < 6) {
+      return "Phone must contain at least 6 characters.";
+    }
+    if (!Number.isInteger(parsedTreeCount) || parsedTreeCount < 1) {
+      return "Tree count must be an integer greater than or equal to 1.";
+    }
+    if (!Number.isFinite(parsedSpacing) || parsedSpacing <= 0) {
+      return "Spacing must be a positive number.";
+    }
+    if (!Number.isFinite(parsedEfficiency) || parsedEfficiency < 0.5 || parsedEfficiency > 1) {
+      return "Irrigation efficiency must be between 0.5 and 1.0.";
+    }
 
-    const trendValues = trendSource.map((item) => item.litres_per_tree);
-    const maxTrend = Math.max(...trendValues, 1);
+    return null;
+  }, [farmerName, phone, treeCount, spacingM2, efficiency]);
 
-    return {
-      totalHectares,
-      stressCount,
-      actionPlan: actionable.slice(0, 3),
-      nextFarm,
-      trendValues,
-      maxTrend,
-    };
-  }, [farmDetails, farms]);
+  const canOpenStep2 = !stepOneValidationError;
+
+  const loadFeedback = useCallback(async (farmId: string, signal?: AbortSignal) => {
+    if (!farmId) {
+      setFeedbackSummary(null);
+      return;
+    }
+
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("No token found. Login first.");
+
+      const summary = await fetchFeedbackSummary(token, farmId, signal);
+      setFeedbackSummary(summary);
+    } catch (error) {
+      if (isAbortRequestError(error)) {
+        return;
+      }
+      setFeedbackError(toError(error));
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, []);
+
+  const loadProfile = useCallback(async (signal?: AbortSignal) => {
+    setProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("No token found. Login first.");
+
+      const me = await authMe(token, signal);
+      setProfile(me);
+    } catch (error) {
+      if (isAbortRequestError(error)) {
+        return;
+      }
+      setProfileError(toError(error));
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view !== "feedback") return;
+
+    const controller = new AbortController();
+    void loadFeedback(feedbackFarmId, controller.signal);
+    return () => controller.abort();
+  }, [view, feedbackFarmId, loadFeedback]);
+
+  useEffect(() => {
+    if (view !== "profile") return;
+
+    const controller = new AbortController();
+    void loadProfile(controller.signal);
+    return () => controller.abort();
+  }, [view, loadProfile]);
+
+  function setPolygon(points: number[][]) {
+    setPolygonPoints(points);
+    setPolygonText(prettyPolygon(points));
+  }
+
+  function addPoint(point: [number, number]) {
+    setPolygonPoints((prev) => {
+      const next = [...prev, point];
+      setPolygonText(prettyPolygon(next));
+      return next;
+    });
+  }
+
+  function movePoint(index: number, point: [number, number]) {
+    setPolygonPoints((prev) => {
+      if (index < 0 || index >= prev.length) return prev;
+      const next = [...prev];
+      next[index] = point;
+      setPolygonText(prettyPolygon(next));
+      return next;
+    });
+  }
+
+  function undoPoint() {
+    setPolygon(polygonPoints.slice(0, -1));
+  }
+
+  function clearPoints() {
+    setPolygon([]);
+  }
+
+  function applyPolygonText() {
+    try {
+      const parsed = parsePolygonText(polygonText);
+      setPolygon(parsed);
+      setRegisterSuccess(`Polygon applied from text (${parsed.length} points).`);
+      setRegisterError(null);
+    } catch (error) {
+      setRegisterError(toError(error));
+      setRegisterSuccess(null);
+    }
+  }
+
+  async function onCreateFarm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRegisteringFarm(true);
+    setRegisterError(null);
+    setRegisterSuccess(null);
+
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("No token found. Login first.");
+
+      if (stepOneValidationError) {
+        throw new Error(stepOneValidationError);
+      }
+
+      let polygon = polygonPoints;
+      if (polygonMode === "text") {
+        polygon = parsePolygonText(polygonText);
+        setPolygon(polygon);
+      }
+
+      const payload: RegisterFarmRequest = {
+        farmer_name: farmerName.trim(),
+        phone: phone.trim(),
+        crop_type: cropType.trim() || "olive",
+        tree_age: treeAge,
+        soil_type: soilType,
+        tree_count: Number(treeCount),
+        spacing_m2: Number(spacingM2),
+        irrigation_efficiency: Number(efficiency),
+        polygon,
+      };
+
+      if (payload.polygon.length < 3) {
+        throw new Error("Draw at least 3 points to create a valid polygon.");
+      }
+
+      const result = await registerFarm(token, payload);
+      setRegisterSuccess(result.message || "Farm registered successfully.");
+
+      await loadBase();
+      setSelectedFarmId(result.farm_id);
+      setFarmPanelView("list");
+      setAddFarmStep(1);
+    } catch (error) {
+      setRegisterError(toError(error));
+    } finally {
+      setRegisteringFarm(false);
+    }
+  }
+
+  function openAddFarm() {
+    setFarmPanelView("add");
+    setAddFarmStep(1);
+    setView("farms");
+    setRegisterError(null);
+  }
+
+  function onContinueToStep2() {
+    if (!canOpenStep2) {
+      setRegisterError(stepOneValidationError || "Complete Step 1 fields first.");
+      return;
+    }
+    setRegisterError(null);
+    setAddFarmStep(2);
+  }
+
+  function onLogout() {
+    clearAccessToken();
+    router.push("/auth/login");
+  }
 
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <header className={styles.topbar}>
-          <div>
-            <p className={styles.brand}>OleaSat</p>
-            <h1>Dashboard overview</h1>
-            <p className={styles.sub}>Monitoring active farms and irrigation stress signals.</p>
-          </div>
+        <div className={styles.workspace}>
+          <aside className={styles.sidebar}>
+            <p className={styles.sidebarKicker}>Dashboard navigation</p>
+            <h2>Workspace</h2>
 
-          <div className={styles.topActions}>
-            <Link className={styles.topLink} href="/farms/new">
-              + New farm
-            </Link>
-            <Link className={styles.topLink} href="/analysis">
-              Analysis
-            </Link>
-            <Link className={styles.topLink} href="/auth/me">
-              Profile
-            </Link>
-          </div>
-        </header>
+            <div className={styles.navList}>
+              <button
+                type="button"
+                className={view === "actions" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
+                onClick={() => setView("actions")}
+              >
+                Farmer action center
+              </button>
+              <button
+                type="button"
+                className={view === "farms" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
+                onClick={() => setView("farms")}
+              >
+                Farms management
+              </button>
+              <Link className={styles.navLink} href="/dashboard/analysis">
+                Analyze history
+              </Link>
+            </div>
 
-        {errorMessage && <p className={styles.error}>{errorMessage}</p>}
-
-        <section className={styles.summaryGrid}>
-          <article className={styles.summaryCard}>
-            <p>Total hectares</p>
-            <h2>{fmtOneDecimal(derived.totalHectares)} ha</h2>
-            <small>{fmtNumber(metrics?.farmers_active ?? 0)} active farmers</small>
-          </article>
-
-          <article className={styles.summaryCard}>
-            <p>Active alerts</p>
-            <h2>{fmtNumber(derived.stressCount)}</h2>
-            <small>{fmtNumber(metrics?.alerts_sent_this_week ?? 0)} alerts this week</small>
-          </article>
-
-          <article className={styles.summaryCard}>
-            <p>Next irrigation</p>
-            <h2>
-              {derived.nextFarm
-                ? (derived.nextFarm.last_alert?.stress_mode ? "Urgent" : "Planned")
-                : "No data"}
-            </h2>
-            <small>
-              {derived.nextFarm
-                ? `${derived.nextFarm.farm.farmer_name || "Unnamed farm"} - ${fmtOneDecimal(derived.nextFarm.last_alert?.litres_per_tree || 0)} L/tree`
-                : "Run calculations to generate recommendations"}
-            </small>
-          </article>
-        </section>
-
-        <section className={styles.contentGrid}>
-          <article className={styles.panelLarge}>
-            <div className={styles.panelHeader}>
-              <h3>Farm list</h3>
-              <button className={styles.refreshBtn} onClick={() => void loadDashboard()} disabled={loading}>
-                {loading ? "Refreshing..." : "Refresh"}
+            <div className={styles.navBottom}>
+              <button
+                type="button"
+                className={view === "feedback" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
+                onClick={() => setView("feedback")}
+              >
+                Feedback
+              </button>
+              <button
+                type="button"
+                className={view === "profile" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
+                onClick={() => setView("profile")}
+              >
+                Profile
+              </button>
+              <button type="button" className={`${styles.navLink} ${styles.navLinkDanger}`} onClick={onLogout}>
+                Logout
               </button>
             </div>
-
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Farm</th>
-                    <th>Trees</th>
-                    <th>Soil</th>
-                    <th>Status</th>
-                    <th>Last rec.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {farmDetails.length === 0 && (
-                    <tr>
-                      <td colSpan={5}>No farms found yet. Create one from the New farm button.</td>
-                    </tr>
-                  )}
-
-                  {farmDetails.map((item) => {
-                    const stress = item.last_alert?.stress_mode;
-                    const statusLabel = stress ? "High stress" : "Stable";
-                    const statusClass = stress ? styles.badgeHigh : styles.badgeOk;
-
-                    return (
-                      <tr key={item.farm.id}>
-                        <td>{item.farm.farmer_name || "Unnamed farm"}</td>
-                        <td>{fmtNumber(item.farm.tree_count || 0)}</td>
-                        <td>{item.farm.soil_type || "-"}</td>
-                        <td>
-                          <span className={`${styles.badge} ${statusClass}`}>{statusLabel}</span>
-                        </td>
-                        <td>
-                          {item.last_alert
-                            ? `${fmtOneDecimal(item.last_alert.litres_per_tree)} L/tree`
-                            : "No alerts"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <aside className={styles.panelSide}>
-            <h3>Action plan</h3>
-
-            <div className={styles.actionsList}>
-              {derived.actionPlan.length === 0 && (
-                <p className={styles.muted}>No action items yet. Run irrigation calculations to populate this panel.</p>
-              )}
-
-              {derived.actionPlan.map((item) => {
-                const urgent = item.last_alert?.stress_mode;
-                return (
-                  <article className={styles.actionItem} key={item.farm.id}>
-                    <span className={urgent ? styles.tagUrgent : styles.tagNormal}>
-                      {urgent ? "Urgent" : "Monitor"}
-                    </span>
-                    <h4>{item.farm.farmer_name || "Unnamed farm"}</h4>
-                    <p>{fmtOneDecimal(item.last_alert?.litres_per_tree || 0)} L/tree recommended</p>
-                  </article>
-                );
-              })}
-            </div>
-
-            <div className={styles.quickLinks}>
-              <Link href="/farms/new">Add a farm</Link>
-              <Link href="/analysis">Run analysis</Link>
-              <Link href="/auth/me">Manage account</Link>
-            </div>
           </aside>
-        </section>
 
-        <section className={styles.trendPanel}>
-          <div className={styles.panelHeader}>
-            <h3>7-point irrigation trend (L/tree)</h3>
-            <small>Derived from latest farm recommendations</small>
-          </div>
+          <main className={styles.main}>
+            <header className={view === "farms" ? `${styles.topbar} ${styles.topbarCompact}` : styles.topbar}>
+              <div>
+                <p className={styles.brand}>OleaSat</p>
+                <h1>
+                  {view === "actions"
+                    ? "Farmer workspace"
+                    : view === "farms"
+                      ? "Farms management"
+                      : view === "feedback"
+                        ? "Feedback"
+                        : "Profile"}
+                </h1>
+                <p className={styles.sub}>
+                  {view === "actions"
+                    ? "Clean dashboard with quick access to your key actions."
+                    : view === "farms"
+                      ? "Review all farms, open details, and add a new farm in two steps."
+                      : view === "feedback"
+                        ? "Check farmer feedback summary directly inside dashboard."
+                        : "View your account profile and sign out from one place."}
+                </p>
+              </div>
+            </header>
 
-          <div className={styles.chart}>
-            {derived.trendValues.length === 0 && <p className={styles.muted}>No chart data yet.</p>}
+            {baseError && <p className={styles.error}>{baseError}</p>}
 
-            {derived.trendValues.map((value, index) => {
-              const height = Math.max((value / derived.maxTrend) * 100, 12);
-              const hClass = barHeightClass(height, styles as unknown as Record<string, string>);
-              return (
-                <div className={styles.barCol} key={`${value}-${index}`}>
-                  <div className={`${styles.bar} ${hClass}`}></div>
-                  <span>P{index + 1}</span>
+            {view === "actions" && (
+              <section className={styles.panel}>
+                <h3>Farmer action center</h3>
+
+                <div className={styles.resultGrid}>
+                  <div>
+                    <span>Registered farms</span>
+                    <strong>{farms.length}</strong>
+                  </div>
+                  <div>
+                    <span>Total hectares</span>
+                    <strong>{fmt(summary.totalHectares)}</strong>
+                  </div>
+                  <div>
+                    <span>Stress alerts</span>
+                    <strong>{summary.stressCount}</strong>
+                  </div>
+                  <div>
+                    <span>Weekly alerts</span>
+                    <strong>{metrics?.alerts_sent_this_week || 0}</strong>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </section>
+
+                <div className={styles.actionsGrid}>
+                  <button type="button" className={styles.actionCard} onClick={() => setView("farms")}>
+                    <strong>Farms management</strong>
+                    <span>Open all farms and inspect details.</span>
+                  </button>
+                  <button type="button" className={styles.actionCard} onClick={openAddFarm}>
+                    <strong>Register farm</strong>
+                    <span>Create a new farm profile and polygon.</span>
+                  </button>
+                  <Link className={styles.actionCard} href="/dashboard/analysis">
+                    <strong>Run analysis</strong>
+                    <span>Open saved analyses and create a new one.</span>
+                  </Link>
+                  <button type="button" className={styles.actionCard} onClick={() => setView("feedback")}>
+                    <strong>Feedback loop</strong>
+                    <span>Submit field outcome and quality signals.</span>
+                  </button>
+                  <button type="button" className={styles.actionCard} onClick={() => setView("profile")}>
+                    <strong>Current user</strong>
+                    <span>View active account details.</span>
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {view === "farms" && (
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h3>Farms workspace</h3>
+                  <div className={styles.inlineActions}>
+                    <button
+                      type="button"
+                      className={farmPanelView === "list" ? `${styles.secondaryBtn} ${styles.tabBtnActive}` : styles.secondaryBtn}
+                      onClick={() => setFarmPanelView("list")}
+                    >
+                      Farms list
+                    </button>
+                    <button
+                      type="button"
+                      className={farmPanelView === "add" ? `${styles.secondaryBtn} ${styles.tabBtnActive}` : styles.secondaryBtn}
+                      onClick={openAddFarm}
+                    >
+                      Add farm
+                    </button>
+                  </div>
+                </div>
+
+                {farmPanelView === "list" && (
+                  <div className={styles.farmsLayout}>
+                    <div className={styles.farmsList}>
+                      {farms.length === 0 && <p className={styles.muted}>No farms yet.</p>}
+                      {farms.map((farm) => (
+                        <button
+                          key={farm.id}
+                          type="button"
+                          className={farm.id === selectedFarmId ? `${styles.farmItem} ${styles.farmItemActive}` : styles.farmItem}
+                          onClick={() => setSelectedFarmId(farm.id)}
+                        >
+                          <div className={styles.farmItemHead}>
+                            <span
+                              className={farm.id === selectedFarmId ? `${styles.farmIcon} ${styles.farmIconActive}` : styles.farmIcon}
+                              aria-hidden="true"
+                            />
+                            <strong>{farm.farmer_name || "Unnamed farm"}</strong>
+                            {farm.id === selectedFarmId && <span className={styles.farmSelectedBadge}>Selected</span>}
+                          </div>
+                          <span>{farm.tree_count || 0} trees</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className={styles.farmDetails}>
+                      {!selectedFarmDetail && <p className={styles.muted}>Select a farm to view details.</p>}
+                      {selectedFarmDetail && (
+                        <>
+                          <div className={styles.resultGrid}>
+                            <div>
+                              <span>Name</span>
+                              <strong>{selectedFarmDetail.farm.farmer_name || "-"}</strong>
+                            </div>
+                            <div>
+                              <span>Phone</span>
+                              <strong>{selectedFarmDetail.farm.phone || "-"}</strong>
+                            </div>
+                            <div>
+                              <span>Tree age</span>
+                              <strong>{selectedFarmDetail.farm.tree_age || "-"}</strong>
+                            </div>
+                            <div>
+                              <span>Soil type</span>
+                              <strong>{selectedFarmDetail.farm.soil_type || "-"}</strong>
+                            </div>
+                            <div>
+                              <span>Tree count</span>
+                              <strong>{selectedFarmDetail.farm.tree_count || 0}</strong>
+                            </div>
+                            <div>
+                              <span>Spacing m2</span>
+                              <strong>{selectedFarmDetail.farm.spacing_m2 || 0}</strong>
+                            </div>
+                          </div>
+
+                          <div className={styles.lastAlertBlock}>
+                            <h4>Last recommendation</h4>
+                            {!selectedFarmDetail.last_alert && <p className={styles.muted}>No alerts yet.</p>}
+                            {selectedFarmDetail.last_alert && (
+                              <div className={styles.resultGrid}>
+                                <div>
+                                  <span>Litres/tree</span>
+                                  <strong>{fmt(selectedFarmDetail.last_alert.litres_per_tree, 2)}</strong>
+                                </div>
+                                <div>
+                                  <span>Total m3</span>
+                                  <strong>{fmt((selectedFarmDetail.last_alert.total_litres || 0) / 1000, 2)}</strong>
+                                </div>
+                                <div>
+                                  <span>Stress mode</span>
+                                  <strong>{selectedFarmDetail.last_alert.stress_mode ? "YES" : "NO"}</strong>
+                                </div>
+                                <div>
+                                  <span>Sent at</span>
+                                  <strong>{new Date(selectedFarmDetail.last_alert.sent_at).toLocaleString()}</strong>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {farmPanelView === "add" && (
+                  <form className={styles.addFarmFlow} onSubmit={onCreateFarm}>
+                    <div className={styles.stepTabs}>
+                      <button
+                        type="button"
+                        className={addFarmStep === 1 ? `${styles.stepTab} ${styles.stepTabActive}` : styles.stepTab}
+                        onClick={() => setAddFarmStep(1)}
+                      >
+                        Step 1: General info
+                      </button>
+                      <button
+                        type="button"
+                        className={addFarmStep === 2 ? `${styles.stepTab} ${styles.stepTabActive}` : styles.stepTab}
+                        onClick={onContinueToStep2}
+                        disabled={!canOpenStep2}
+                      >
+                        Step 2: Polygon
+                      </button>
+                    </div>
+
+                    {addFarmStep === 1 && (
+                      <div className={styles.formGrid}>
+                        <label className={styles.fieldBlock}>
+                          Farmer name
+                          <input value={farmerName} onChange={(event) => setFarmerName(event.target.value)} required minLength={2} />
+                        </label>
+
+                        <label className={styles.fieldBlock}>
+                          Phone
+                          <input value={phone} onChange={(event) => setPhone(event.target.value)} required minLength={6} />
+                        </label>
+
+                        <label className={styles.fieldBlock}>
+                          Crop type
+                          <input value={cropType} onChange={(event) => setCropType(event.target.value)} />
+                        </label>
+
+                        <label className={styles.fieldBlock}>
+                          Tree age
+                          <select value={treeAge} onChange={(event) => setTreeAge(event.target.value as TreeAge)}>
+                            <option value="ADULT">ADULT</option>
+                            <option value="YOUNG">YOUNG</option>
+                          </select>
+                        </label>
+
+                        <label className={styles.fieldBlock}>
+                          Soil type
+                          <select value={soilType} onChange={(event) => setSoilType(event.target.value as SoilType)}>
+                            <option value="MEDIUM">MEDIUM</option>
+                            <option value="SANDY">SANDY</option>
+                            <option value="CLAY">CLAY</option>
+                          </select>
+                        </label>
+
+                        <label className={styles.fieldBlock}>
+                          Tree count
+                          <input type="number" min={1} step={1} value={treeCount} onChange={(event) => setTreeCount(event.target.value)} required />
+                        </label>
+
+                        <label className={styles.fieldBlock}>
+                          Spacing m2
+                          <input type="number" min={0.1} step={0.1} value={spacingM2} onChange={(event) => setSpacingM2(event.target.value)} required />
+                        </label>
+
+                        <label className={styles.fieldBlock}>
+                          Irrigation efficiency
+                          <input type="number" min={0.5} max={1} step={0.01} value={efficiency} onChange={(event) => setEfficiency(event.target.value)} required />
+                        </label>
+
+                        <div className={styles.formActions}>
+                          <button type="button" className={styles.primaryBtn} onClick={onContinueToStep2} disabled={!canOpenStep2}>
+                            Continue to Step 2
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {addFarmStep === 2 && (
+                      <div className={styles.polygonStep}>
+                        <div className={styles.modeSwitch}>
+                          <button
+                            type="button"
+                            className={polygonMode === "map" ? `${styles.modeButton} ${styles.modeButtonActive}` : styles.modeButton}
+                            onClick={() => setPolygonMode("map")}
+                          >
+                            Draw on map
+                          </button>
+                          <button
+                            type="button"
+                            className={polygonMode === "text" ? `${styles.modeButton} ${styles.modeButtonActive}` : styles.modeButton}
+                            onClick={() => setPolygonMode("text")}
+                          >
+                            Paste polygon text
+                          </button>
+                        </div>
+
+                        {polygonMode === "text" && (
+                          <label className={styles.fieldBlock}>
+                            Polygon coordinates (JSON)
+                            <textarea
+                              rows={7}
+                              value={polygonText}
+                              onChange={(event) => setPolygonText(event.target.value)}
+                              spellCheck={false}
+                              placeholder="[[longitude, latitude], ...]"
+                            />
+                          </label>
+                        )}
+
+                        <div className={styles.mapTools}>
+                          <button type="button" className={styles.secondaryBtn} onClick={applyPolygonText}>
+                            Apply text polygon
+                          </button>
+                          <button type="button" className={styles.secondaryBtn} onClick={() => setPolygon(SAMPLE_POLYGON)}>
+                            Use sample polygon
+                          </button>
+                          <button type="button" className={styles.secondaryBtn} onClick={undoPoint} disabled={polygonPoints.length === 0}>
+                            Undo last point
+                          </button>
+                          <button type="button" className={styles.secondaryBtn} onClick={clearPoints} disabled={polygonPoints.length === 0}>
+                            Clear drawing
+                          </button>
+                        </div>
+
+                        <div className={styles.mapBox}>
+                          <ParcelDrawMap
+                            points={polygonPoints as [number, number][]}
+                            onAddPoint={addPoint}
+                            onMovePoint={movePoint}
+                            className={styles.mapLeaflet}
+                          />
+                        </div>
+
+                        <p className={styles.muted}>
+                          Map is focused on north Morocco. Click to add points, drag points to move them, and use clear/undo tools.
+                        </p>
+
+                        <div className={styles.inlineActions}>
+                          <button type="button" className={styles.secondaryBtn} onClick={() => setAddFarmStep(1)}>
+                            Back to Step 1
+                          </button>
+                          <button type="submit" className={styles.primaryBtn} disabled={registeringFarm}>
+                            {registeringFarm ? "Creating farm..." : "Create farm"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {registerError && <p className={styles.errorInline}>{registerError}</p>}
+                    {registerSuccess && <p className={styles.successInline}>{registerSuccess}</p>}
+                  </form>
+                )}
+              </section>
+            )}
+
+            {view === "feedback" && (
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h3>Feedback overview</h3>
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={() => void loadFeedback(feedbackFarmId)}
+                    disabled={feedbackLoading || !feedbackFarmId}
+                  >
+                    {feedbackLoading ? "Loading..." : "Refresh"}
+                  </button>
+                </div>
+
+                <div className={styles.analysisForm}>
+                  <label className={styles.fieldBlock}>
+                    Farm
+                    <select
+                      value={feedbackFarmId}
+                      onChange={(event) => setFeedbackFarmId(event.target.value)}
+                      disabled={farms.length === 0}
+                    >
+                      {farms.length === 0 && <option value="">No farms</option>}
+                      {farms.map((farm) => (
+                        <option key={farm.id} value={farm.id}>{farm.farmer_name || "Unnamed farm"}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {feedbackError && <p className={styles.errorInline}>{feedbackError}</p>}
+
+                {feedbackSummary && (
+                  <>
+                    <div className={styles.resultGrid}>
+                      <div>
+                        <span>Total</span>
+                        <strong>{feedbackSummary.total_feedback}</strong>
+                      </div>
+                      <div>
+                        <span>Worked</span>
+                        <strong>{feedbackSummary.worked_count}</strong>
+                      </div>
+                      <div>
+                        <span>Too much</span>
+                        <strong>{feedbackSummary.too_much_count}</strong>
+                      </div>
+                      <div>
+                        <span>Too little</span>
+                        <strong>{feedbackSummary.too_little_count}</strong>
+                      </div>
+                      <div>
+                        <span>Not applied</span>
+                        <strong>{feedbackSummary.not_applied_count}</strong>
+                      </div>
+                      <div>
+                        <span>Avg rating</span>
+                        <strong>{feedbackSummary.avg_rating.toFixed(2)}</strong>
+                      </div>
+                    </div>
+
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Rating</th>
+                            <th>Comment</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {feedbackSummary.feedback.length === 0 && (
+                            <tr>
+                              <td colSpan={4}>No feedback records yet.</td>
+                            </tr>
+                          )}
+                          {feedbackSummary.feedback.slice(0, 12).map((item) => (
+                            <tr key={item.id}>
+                              <td>{new Date(item.created_at).toLocaleString()}</td>
+                              <td>{item.feedback_type}</td>
+                              <td>{item.rating ?? "-"}</td>
+                              <td>{item.comment || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                {!feedbackSummary && !feedbackError && !feedbackLoading && (
+                  <p className={styles.muted}>Select a farm to load feedback summary.</p>
+                )}
+              </section>
+            )}
+
+            {view === "profile" && (
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h3>My profile</h3>
+                  <button type="button" className={styles.secondaryBtn} onClick={() => void loadProfile()} disabled={profileLoading}>
+                    {profileLoading ? "Loading..." : "Refresh"}
+                  </button>
+                </div>
+
+                {profileError && <p className={styles.errorInline}>{profileError}</p>}
+
+                {profile && (
+                  <div className={styles.resultGrid}>
+                    <div>
+                      <span>Full name</span>
+                      <strong>{profile.full_name || "-"}</strong>
+                    </div>
+                    <div>
+                      <span>Email</span>
+                      <strong>{profile.email}</strong>
+                    </div>
+                    <div>
+                      <span>Role</span>
+                      <strong>{profile.role}</strong>
+                    </div>
+                    <div>
+                      <span>Status</span>
+                      <strong>{profile.is_active ? "Active" : "Inactive"}</strong>
+                    </div>
+                  </div>
+                )}
+
+                <div className={styles.inlineActions}>
+                  <button type="button" className={`${styles.secondaryBtn} ${styles.navLinkDanger}`} onClick={onLogout}>
+                    Logout
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {loadingBase && <p className={styles.muted}>Loading dashboard...</p>}
+          </main>
+        </div>
       </div>
     </div>
   );

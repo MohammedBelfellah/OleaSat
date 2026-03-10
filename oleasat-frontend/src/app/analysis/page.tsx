@@ -66,6 +66,16 @@ function toAnalysisError(error: unknown): string {
   return "Unexpected analysis error";
 }
 
+function isAbortRequestError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+  if (error instanceof Error) {
+    return error.message.toLowerCase().includes("aborted");
+  }
+  return false;
+}
+
 export default function AnalysisPage() {
   const [loadingFarms, setLoadingFarms] = useState(true);
   const [loadingLatest, setLoadingLatest] = useState(false);
@@ -98,6 +108,9 @@ export default function AnalysisPage() {
         setSelectedFarmId((prev) => prev || list[0].id);
       }
     } catch (error) {
+      if (isAbortRequestError(error)) {
+        return;
+      }
       setErrorMessage(toAnalysisError(error));
     } finally {
       setLoadingFarms(false);
@@ -126,6 +139,9 @@ export default function AnalysisPage() {
       const latestMap = await fetchFarmWaterMap(token, farmId, undefined, signal);
       setWaterMap(latestMap);
     } catch (error) {
+      if (isAbortRequestError(error)) {
+        return;
+      }
       if (error instanceof ApiError && error.status === 404 && error.detail === "no_saved_analysis") {
         setCalculateResult(null);
         setWaterMap(null);
@@ -154,6 +170,9 @@ export default function AnalysisPage() {
       const metrics = await fetchMetricsFarmer(token, farmId, signal);
       setAnalysisHistory(metrics.alerts || []);
     } catch (error) {
+      if (isAbortRequestError(error)) {
+        return;
+      }
       if (error instanceof ApiError && error.status === 404 && error.detail === "farmer_not_found") {
         setAnalysisHistory([]);
         return;
@@ -397,7 +416,7 @@ export default function AnalysisPage() {
           )}
         </section>
 
-        <section className={styles.mapSection}>
+        <section className={styles.mapSection} id="water-map">
           <header className={styles.mapHeader}>
             <h3>Water stress map</h3>
             <p>

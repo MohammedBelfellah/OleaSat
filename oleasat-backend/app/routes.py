@@ -12,6 +12,10 @@ from app.schemas import (
     AdminDashboardResponse,
     AnalyzeRequest,
     AnalyzeResponse,
+    AnalysisRunCreateRequest,
+    AnalysisRunCreateResponse,
+    AnalysisRunDetailResponse,
+    AnalysisRunsResponse,
     FeedbackCreateRequest,
     FeedbackOut,
     FeedbackSummaryResponse,
@@ -360,6 +364,272 @@ def get_latest_analysis(
         farm_id=farm_id,
         generated_at=cached.created_at.isoformat(),
         analysis=CalculateResponse(**analysis_data),
+    )
+
+
+@router.get(
+    "/analysis/runs",
+    response_model=AnalysisRunsResponse,
+    tags=["Irrigation"],
+    summary="List saved analysis runs from DB",
+)
+def list_analysis_runs(
+    farm_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> AnalysisRunsResponse:
+    """List saved analyses (no Sentinel call).
+
+    - FARMER: only their farms
+    - ADMIN: all farms
+    """
+    farms_query = db.query(FarmerProfile)
+    if user.role != "ADMIN":
+        farms_query = farms_query.filter(FarmerProfile.owner_id == user.id)
+
+    farms = farms_query.all()
+    farms_by_id = {farm.id: farm for farm in farms}
+
+    if farm_id:
+        if farm_id not in farms_by_id:
+            farm_exists = db.query(FarmerProfile).filter(FarmerProfile.id == farm_id).first()
+            if not farm_exists:
+                raise HTTPException(status_code=404, detail="farmer_not_found")
+            raise HTTPException(status_code=403, detail="not_your_farm")
+
+    query = db.query(AnalysisCache)
+    if farm_id:
+        query = query.filter(AnalysisCache.farm_id == farm_id)
+    else:
+        allowed_ids = list(farms_by_id.keys())
+        if not allowed_ids:
+            return AnalysisRunsResponse(runs=[])
+        query = query.filter(AnalysisCache.farm_id.in_(allowed_ids))
+
+    rows = query.order_by(AnalysisCache.created_at.desc()).all()
+
+    runs = []
+    for row in rows:
+        farm = farms_by_id.get(row.farm_id)
+        if not farm:
+            continue
+
+        result = json.loads(row.result_json)
+        has_map = (
+            db.query(WaterMapCache)
+            .filter(
+                WaterMapCache.farm_id == row.farm_id,
+                WaterMapCache.start_date == row.start_date,
+                WaterMapCache.end_date == row.end_date,
+            )
+            .first()
+            is not None
+        )
+
+        runs.append(
+            {
+                "id": row.id,
+                "farm_id": row.farm_id,
+                "farmer_name": farm.farmer_name,
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+                "created_at": row.created_at.isoformat(),
+                "recommendation": result.get("recommendation"),
+                "litres_per_tree": result.get("litres_per_tree"),
+                "total_m3": result.get("total_m3"),
+                "stress_mode": result.get("stress_mode"),
+                "has_water_map": has_map,
+            }
+        )
+
+    return AnalysisRunsResponse(runs=runs)
+
+
+@router.get(
+    "/analysis/runs/{analysis_id}",
+    response_model=AnalysisRunDetailResponse,
+    tags=["Irrigation"],
+    summary="Get one saved analysis run with saved water map",
+)
+def get_analysis_run_detail(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> AnalysisRunDetailResponse:
+    """Return one saved analysis + saved water map from DB only."""
+    row = db.query(AnalysisCache).filter(AnalysisCache.id == analysis_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="analysis_not_found")
+
+    farm = db.query(FarmerProfile).filter(FarmerProfile.id == row.farm_id).first()
+    if not farm:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if user.role != "ADMIN" and farm.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    map_row = (
+        db.query(WaterMapCache)
+        .filter(
+            WaterMapCache.farm_id == row.farm_id,
+            WaterMapCache.start_date == row.start_date,
+            WaterMapCache.end_date == row.end_date,
+        )
+        .order_by(WaterMapCache.created_at.desc())
+        .first()
+    )
+    if not map_row:
+        raise HTTPException(status_code=404, detail="water_map_not_found")
+
+    analysis_data = json.loads(row.result_json)
+    analysis_data["from_cache"] = True
+    analysis_data["cached_at"] = row.created_at.isoformat()
+
+    map_data = json.loads(map_row.result_json)
+
+    return AnalysisRunDetailResponse(
+        id=row.id,
+        farm_id=row.farm_id,
+        farmer_name=farm.farmer_name,
+        start_date=row.start_date,
+        end_date=row.end_date,
+        created_at=row.created_at.isoformat(),
+        analysis=CalculateResponse(**analysis_data),
+        water_map=WaterStressMapResponse(
+            farm_id=row.farm_id,
+            from_cache=True,
+            cached_at=map_row.created_at.isoformat(),
+            **map_data,
+        ),
+    )
+
+
+@router.post(
+    "/analysis/runs",
+    response_model=AnalysisRunCreateResponse,
+    tags=["Irrigation"],
+    summary="Create a new analysis run or return existing one",
+)
+def create_analysis_run(
+    payload: AnalysisRunCreateRequest,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> AnalysisRunCreateResponse:
+    """Create analysis for farm/date range with duplicate guard.
+
+    Duplicate key rule: farm_id + start_date + end_date.
+    If duplicate exists, no new Sentinel request is made and existing run id is returned.
+    """
+    farm = db.query(FarmerProfile).filter(FarmerProfile.id == payload.farm_id).first()
+    if not farm:
+        raise HTTPException(status_code=404, detail="farmer_not_found")
+
+    if user.role != "ADMIN" and farm.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not_your_farm")
+
+    window_start, window_end = _resolve_window(payload.start_date, payload.end_date)
+
+    existing = (
+        db.query(AnalysisCache)
+        .filter(
+            AnalysisCache.farm_id == payload.farm_id,
+            AnalysisCache.start_date == window_start,
+            AnalysisCache.end_date == window_end,
+        )
+        .order_by(AnalysisCache.created_at.desc())
+        .first()
+    )
+    if existing:
+        return AnalysisRunCreateResponse(
+            status="existing",
+            message="Analysis already exists for this farm and date range.",
+            analysis_id=existing.id,
+            farm_id=payload.farm_id,
+            start_date=window_start,
+            end_date=window_end,
+        )
+
+    missing = []
+    if farm.polygon_json is None:
+        missing.append("polygon")
+    if farm.tree_age is None:
+        missing.append("tree_age")
+    if farm.soil_type is None:
+        missing.append("soil_type")
+    if farm.tree_count is None:
+        missing.append("tree_count")
+    if missing:
+        raise HTTPException(status_code=422, detail={"error": "incomplete_profile", "missing_fields": missing})
+
+    polygon = json.loads(farm.polygon_json)
+
+    analysis_result = run_pipeline(
+        farm_id=farm.id,
+        polygon=polygon,
+        tree_count=farm.tree_count,
+        tree_age=farm.tree_age,
+        soil_type=farm.soil_type,
+        spacing_m2=farm.spacing_m2 or 100.0,
+        irrigation_efficiency=farm.irrigation_efficiency or 0.9,
+        start_date=window_start,
+        end_date=window_end,
+        max_cloud_pct=20.0,
+    )
+
+    analysis_row = AnalysisCache(
+        farm_id=farm.id,
+        start_date=window_start,
+        end_date=window_end,
+        max_cloud_pct=20.0,
+        result_json=json.dumps(analysis_result, ensure_ascii=True),
+    )
+    db.add(analysis_row)
+    db.flush()
+
+    map_result = get_water_stress_map(
+        polygon=polygon,
+        start_date=window_start,
+        end_date=window_end,
+        max_cloud_pct=20.0,
+        grid_size=20,
+    )
+    db.add(
+        WaterMapCache(
+            farm_id=farm.id,
+            start_date=window_start,
+            end_date=window_end,
+            grid_size=20,
+            max_cloud_pct=20.0,
+            result_json=json.dumps(map_result, ensure_ascii=True),
+        )
+    )
+
+    alert = AlertRecord(
+        farmer_id=farm.id,
+        et0_weekly_mm=analysis_result["et0_week"],
+        rain_weekly_mm=analysis_result["rain_week"],
+        kc_applied=analysis_result["kc_applied"],
+        litres_per_tree=analysis_result["litres_per_tree"],
+        total_litres=analysis_result["total_litres"],
+        stress_mode=analysis_result["stress_mode"],
+        ndvi_current=analysis_result["ndvi_current"],
+        ndvi_delta=analysis_result["ndvi_delta"],
+        ndmi_current=analysis_result["ndmi_current"],
+        irrigation_efficiency=analysis_result["irrigation_efficiency"],
+        delivery_status="SENT",
+    )
+    db.add(alert)
+    farm.last_alert_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    return AnalysisRunCreateResponse(
+        status="created",
+        message="Analysis created successfully.",
+        analysis_id=analysis_row.id,
+        farm_id=farm.id,
+        start_date=window_start,
+        end_date=window_end,
     )
 
 

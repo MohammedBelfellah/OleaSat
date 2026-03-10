@@ -258,6 +258,50 @@ class LatestAnalysisResponse(BaseModel):
     analysis: CalculateResponse
 
 
+class AnalysisRunItem(BaseModel):
+    id: str
+    farm_id: str
+    farmer_name: Optional[str] = None
+    start_date: str
+    end_date: str
+    created_at: str
+    recommendation: Optional[str] = None
+    litres_per_tree: Optional[float] = None
+    total_m3: Optional[float] = None
+    stress_mode: Optional[bool] = None
+    has_water_map: bool = False
+
+
+class AnalysisRunsResponse(BaseModel):
+    runs: List[AnalysisRunItem]
+
+
+class AnalysisRunCreateRequest(BaseModel):
+    farm_id: str
+    start_date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
+    end_date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
+
+
+class AnalysisRunCreateResponse(BaseModel):
+    status: str
+    message: str
+    analysis_id: str
+    farm_id: str
+    start_date: str
+    end_date: str
+
+
+class AnalysisRunDetailResponse(BaseModel):
+    id: str
+    farm_id: str
+    farmer_name: Optional[str] = None
+    start_date: str
+    end_date: str
+    created_at: str
+    analysis: CalculateResponse
+    water_map: WaterStressMapResponse
+
+
 # ---------- Metrics (Spec §5.3) ----------
 
 class FarmerOut(BaseModel):

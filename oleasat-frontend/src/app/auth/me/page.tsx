@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 import styles from "../auth.module.css";
 import { ApiError, authMe, type UserOut } from "@/lib/api";
@@ -24,12 +25,13 @@ function toMeErrorMessage(error: unknown): string {
 }
 
 export default function MePage() {
+  const router = useRouter();
   const [user, setUser] = useState<UserOut | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  async function loadCurrentUser() {
+  const loadCurrentUser = useCallback(async () => {
     const token = getAccessToken();
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -45,14 +47,17 @@ export default function MePage() {
     try {
       const result = await authMe(token);
       setUser(result);
-      setSuccessMessage("Profile loaded successfully.");
+      setSuccessMessage("Session valid. Redirecting to dashboard...");
+      window.setTimeout(() => {
+        router.replace("/dashboard");
+      }, 300);
     } catch (error) {
       setUser(null);
       setErrorMessage(toMeErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }
+  }, [router]);
 
   function logout() {
     clearAccessToken();
@@ -69,7 +74,7 @@ export default function MePage() {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [loadCurrentUser]);
 
   return (
     <div className={styles.page}>
@@ -135,23 +140,19 @@ export default function MePage() {
             </section>
           )}
 
-          <div className={styles.linksRow}>
-            <Link className={styles.linkPill} href="/dashboard">
-              Open dashboard
-            </Link>
-            <Link className={styles.linkPill} href="/farms/new">
-              Register new farm
-            </Link>
-            <Link className={styles.linkPill} href="/auth/login">
-              Go to login
-            </Link>
-            <Link className={styles.linkPill} href="/auth/register">
-              Go to register
-            </Link>
-            <Link className={styles.linkPill} href="/">
-              Back to home
-            </Link>
-          </div>
+          {!user && (
+            <div className={styles.linksRow}>
+              <Link className={styles.linkPill} href="/auth/login">
+                Go to login
+              </Link>
+              <Link className={styles.linkPill} href="/auth/register">
+                Go to register
+              </Link>
+              <Link className={styles.linkPill} href="/">
+                Back to home
+              </Link>
+            </div>
+          )}
         </main>
       </div>
     </div>

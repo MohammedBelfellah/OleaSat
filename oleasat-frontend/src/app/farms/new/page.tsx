@@ -208,6 +208,12 @@ export default function FarmRegistrationPage() {
             </p>
           </header>
 
+          <div className={styles.topNavRow}>
+            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/analysis">Run analysis</Link>
+            <Link href="/analysis#water-map">Water map</Link>
+          </div>
+
           <form className={styles.form} onSubmit={onSubmit}>
             <div className={styles.field}>
               <label htmlFor="farmer-name">Farmer name</label>
@@ -381,11 +387,6 @@ export default function FarmRegistrationPage() {
             )}
           </form>
 
-          <div className={styles.links}>
-            <Link href="/auth/me">Back to profile</Link>
-            <Link href="/analysis">Go to analysis</Link>
-            <Link href="/">Home</Link>
-          </div>
         </section>
 
         <section className={styles.mapMock}>

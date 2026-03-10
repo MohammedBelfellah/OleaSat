@@ -23,6 +23,11 @@ export type AuthTokenResponse = {
   role: string;
 };
 
+export type StatusMessageResponse = {
+  status: string;
+  message: string;
+};
+
 export type UserOut = {
   id: string;
   email: string;
@@ -50,6 +55,12 @@ export type RegisterFarmRequest = {
 export type RegisterFarmResponse = {
   farm_id: string;
   message: string;
+};
+
+export type TelegramLinkResponse = {
+  farmer_id: string;
+  telegram_link: string;
+  linked: boolean;
 };
 
 export type MetricsSummaryResponse = {
@@ -147,10 +158,89 @@ export type CalculateResponse = {
   cached_at?: string | null;
 };
 
+export type AnalyzeRequest = {
+  farm_id: string;
+  polygon: number[][];
+  tree_count?: number;
+  tree_age?: TreeAge;
+  soil_type?: SoilType;
+  spacing_m2?: number;
+  irrigation_efficiency?: number;
+  start_date?: string;
+  end_date?: string;
+  max_cloud_pct?: number;
+};
+
+export type AnalyzeResponse = CalculateResponse;
+
+export type SatelliteIndicesRequest = {
+  polygon: number[][];
+  start_date?: string;
+  end_date?: string;
+  max_cloud_pct?: number;
+};
+
+export type SatelliteIndicesResponse = {
+  ndvi_current: number;
+  ndvi_delta: number;
+  ndmi_current: number;
+  cloud_pct: number;
+  date_used: string;
+  images_used: number;
+  source: string;
+  note?: string | null;
+  window_start: string;
+  window_end: string;
+};
+
 export type LatestFarmAnalysisResponse = {
   farm_id: string;
   generated_at: string;
   analysis: CalculateResponse;
+};
+
+export type AnalysisRunItem = {
+  id: string;
+  farm_id: string;
+  farmer_name?: string | null;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  recommendation?: string | null;
+  litres_per_tree?: number | null;
+  total_m3?: number | null;
+  stress_mode?: boolean | null;
+  has_water_map: boolean;
+};
+
+export type AnalysisRunsResponse = {
+  runs: AnalysisRunItem[];
+};
+
+export type AnalysisRunCreateRequest = {
+  farm_id: string;
+  start_date?: string;
+  end_date?: string;
+};
+
+export type AnalysisRunCreateResponse = {
+  status: "created" | "existing";
+  message: string;
+  analysis_id: string;
+  farm_id: string;
+  start_date: string;
+  end_date: string;
+};
+
+export type AnalysisRunDetailResponse = {
+  id: string;
+  farm_id: string;
+  farmer_name?: string | null;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  analysis: CalculateResponse;
+  water_map: WaterStressMapResponse;
 };
 
 export type WaterStressMapCell = {
@@ -198,6 +288,59 @@ export type WaterMapQuery = {
   max_cloud_pct?: number;
   grid_size?: number;
   force_refresh?: boolean;
+};
+
+export type FeedbackType = "WORKED" | "TOO_MUCH" | "TOO_LITTLE" | "NOT_APPLIED";
+
+export type FeedbackCreateRequest = {
+  farmer_id: string;
+  alert_id?: string;
+  feedback_type: FeedbackType;
+  rating?: number;
+  comment?: string;
+};
+
+export type FeedbackOut = {
+  id: string;
+  farmer_id: string;
+  alert_id?: string | null;
+  feedback_type: FeedbackType;
+  rating?: number | null;
+  comment?: string | null;
+  created_at: string;
+};
+
+export type FeedbackSummaryResponse = {
+  farmer_id: string;
+  total_feedback: number;
+  worked_count: number;
+  too_much_count: number;
+  too_little_count: number;
+  not_applied_count: number;
+  avg_rating: number;
+  feedback: FeedbackOut[];
+};
+
+export type AdminDashboardResponse = {
+  total_farmers: number;
+  active_farmers: number;
+  total_alerts: number;
+  alerts_this_week: number;
+  farmers_with_telegram: number;
+  avg_litres_per_tree: number;
+  total_water_m3: number;
+  stress_alerts_count: number;
+  urgent_farms: FarmListItem[];
+  recent_alerts: Array<{
+    id: string;
+    farmer_id: string;
+    farmer_name: string;
+    sent_at: string;
+    litres_per_tree: number;
+    total_litres: number;
+    stress_mode: boolean;
+    delivery_status: string;
+  }>;
 };
 
 type ApiErrorPayload = {
@@ -419,6 +562,28 @@ export async function fetchFarmDetail(
   return (await response.json()) as FarmDetailResponse;
 }
 
+export async function deleteFarm(
+  token: string,
+  farmId: string,
+  signal?: AbortSignal,
+): Promise<StatusMessageResponse> {
+  const response = await fetch(`${API_BASE_URL}/farms/${farmId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as StatusMessageResponse;
+}
+
 export async function calculateIrrigation(
   token: string,
   farmerId: string,
@@ -470,6 +635,123 @@ export async function fetchLatestFarmAnalysis(
   return (await response.json()) as LatestFarmAnalysisResponse;
 }
 
+export async function fetchAnalysisRuns(
+  token: string,
+  query?: { farm_id?: string },
+  signal?: AbortSignal,
+): Promise<AnalysisRunsResponse> {
+  const params = new URLSearchParams();
+  if (query?.farm_id) params.set("farm_id", query.farm_id);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+
+  const response = await fetch(`${API_BASE_URL}/analysis/runs${suffix}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as AnalysisRunsResponse;
+}
+
+export async function fetchAnalysisRunDetail(
+  token: string,
+  analysisId: string,
+  signal?: AbortSignal,
+): Promise<AnalysisRunDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/analysis/runs/${analysisId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as AnalysisRunDetailResponse;
+}
+
+export async function createAnalysisRun(
+  token: string,
+  payload: AnalysisRunCreateRequest,
+  signal?: AbortSignal,
+): Promise<AnalysisRunCreateResponse> {
+  const response = await fetch(`${API_BASE_URL}/analysis/runs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as AnalysisRunCreateResponse;
+}
+
+export async function analyzeDirect(
+  token: string,
+  payload: AnalyzeRequest,
+  signal?: AbortSignal,
+): Promise<AnalyzeResponse> {
+  const response = await fetch(`${API_BASE_URL}/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as AnalyzeResponse;
+}
+
+export async function fetchSatelliteIndices(
+  token: string,
+  payload: SatelliteIndicesRequest,
+  signal?: AbortSignal,
+): Promise<SatelliteIndicesResponse> {
+  const response = await fetch(`${API_BASE_URL}/satellite/indices`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as SatelliteIndicesResponse;
+}
+
 export async function fetchFarmWaterMap(
   token: string,
   farmId: string,
@@ -501,4 +783,134 @@ export async function fetchFarmWaterMap(
   }
 
   return (await response.json()) as WaterStressMapResponse;
+}
+
+export async function fetchTelegramLink(
+  token: string,
+  farmerId: string,
+  signal?: AbortSignal,
+): Promise<TelegramLinkResponse> {
+  const response = await fetch(`${API_BASE_URL}/telegram-link/${farmerId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as TelegramLinkResponse;
+}
+
+export async function submitFeedback(
+  token: string,
+  payload: FeedbackCreateRequest,
+  signal?: AbortSignal,
+): Promise<FeedbackOut> {
+  const response = await fetch(`${API_BASE_URL}/feedback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as FeedbackOut;
+}
+
+export async function fetchFeedbackSummary(
+  token: string,
+  farmerId: string,
+  signal?: AbortSignal,
+): Promise<FeedbackSummaryResponse> {
+  const response = await fetch(`${API_BASE_URL}/feedback/farmer/${farmerId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as FeedbackSummaryResponse;
+}
+
+export async function fetchAdminDashboard(
+  token: string,
+  signal?: AbortSignal,
+): Promise<AdminDashboardResponse> {
+  const response = await fetch(`${API_BASE_URL}/admin/dashboard`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as AdminDashboardResponse;
+}
+
+export async function fetchAdminFarmers(
+  token: string,
+  signal?: AbortSignal,
+): Promise<FarmListItem[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/farmers`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as FarmListItem[];
+}
+
+export async function triggerWeeklyJob(
+  token: string,
+  signal?: AbortSignal,
+): Promise<StatusMessageResponse> {
+  const response = await fetch(`${API_BASE_URL}/admin/trigger-weekly`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw await asApiError(response);
+  }
+
+  return (await response.json()) as StatusMessageResponse;
 }
