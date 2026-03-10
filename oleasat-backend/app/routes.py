@@ -790,7 +790,7 @@ def farm_water_map(
 
 @router.get("/metrics/summary", response_model=MetricsSummaryResponse, tags=["Metrics"],
             summary="Dashboard aggregate statistics")
-def metrics_summary(db: Session = Depends(get_db), _user=Depends(get_current_user)) -> MetricsSummaryResponse:
+def metrics_summary(db: Session = Depends(get_db), user=Depends(get_current_user)) -> MetricsSummaryResponse:
     """Returns aggregate counts for monitoring dashboards:
 
     - `farmers_active` — number of farmers with state = ACTIVE
@@ -799,13 +799,26 @@ def metrics_summary(db: Session = Depends(get_db), _user=Depends(get_current_use
     """
     from sqlalchemy import func
 
-    farmers_active = db.query(FarmerProfile).filter(FarmerProfile.state == "ACTIVE").count()
-
     # Alerts sent this week (last 7 days)
     week_ago = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=7)
-    alerts_this_week = db.query(AlertRecord).filter(AlertRecord.sent_at >= week_ago).count()
 
-    avg_litres = db.query(func.avg(AlertRecord.litres_per_tree)).scalar() or 0.0
+    if user.role == "ADMIN":
+        farmers_active = db.query(FarmerProfile).filter(FarmerProfile.state == "ACTIVE").count()
+        alerts_this_week = db.query(AlertRecord).filter(AlertRecord.sent_at >= week_ago).count()
+        avg_litres = db.query(func.avg(AlertRecord.litres_per_tree)).scalar() or 0.0
+    else:
+        owner_farms = db.query(FarmerProfile).filter(FarmerProfile.owner_id == user.id).all()
+        owner_farm_ids = [farm.id for farm in owner_farms]
+
+        farmers_active = sum(1 for farm in owner_farms if farm.state == "ACTIVE")
+
+        if not owner_farm_ids:
+            alerts_this_week = 0
+            avg_litres = 0.0
+        else:
+            scoped_alerts = db.query(AlertRecord).filter(AlertRecord.farmer_id.in_(owner_farm_ids))
+            alerts_this_week = scoped_alerts.filter(AlertRecord.sent_at >= week_ago).count()
+            avg_litres = scoped_alerts.with_entities(func.avg(AlertRecord.litres_per_tree)).scalar() or 0.0
 
     return MetricsSummaryResponse(
         farmers_active=farmers_active,

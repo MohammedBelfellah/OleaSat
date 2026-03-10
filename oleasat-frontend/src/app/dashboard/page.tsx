@@ -454,10 +454,17 @@ export default function DashboardPage() {
   useEffect(() => {
     if (view !== "telegram") return;
 
+    if (farms.length === 0) {
+      setTelegramLinkData(null);
+      setTelegramLinkError(null);
+      setTelegramLinkLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     void loadTelegramLink(controller.signal);
     return () => controller.abort();
-  }, [view, loadTelegramLink]);
+  }, [view, farms.length, loadTelegramLink]);
 
   async function onSubmitFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -503,6 +510,12 @@ export default function DashboardPage() {
   }
 
   async function onOpenTelegramConnection() {
+    if (farms.length === 0) {
+      setTelegramLinkError("No farms yet. Create a farm first, then connect Telegram.");
+      setTelegramOpenMessage(null);
+      return;
+    }
+
     if (!telegramLinkData?.telegram_link) {
       await loadTelegramLink();
     }
@@ -782,7 +795,7 @@ export default function DashboardPage() {
                     : view === "farms"
                       ? "Review all farms, open details, and add a new farm in two steps."
                       : view === "telegram"
-                        ? "Link each farm to its own Telegram chat with QR and direct link."
+                        ? "Connect one Telegram account for your full profile and all its farms."
                       : view === "feedback"
                         ? "Collect farmer reviews only. Telegram linking now lives in its own section."
                         : "View your account profile and sign out from one place."}
@@ -1254,14 +1267,19 @@ export default function DashboardPage() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={qrCodeUrl} alt="Telegram link QR code" className={styles.telegramQrImage} />
                       )}
-                      {!telegramLinkLoading && !telegramLinkData && <p className={styles.muted}>Generating profile link...</p>}
+                      {!telegramLinkLoading && !telegramLinkData && farms.length > 0 && (
+                        <p className={styles.muted}>Generating profile link...</p>
+                      )}
+                      {!telegramLinkLoading && !telegramLinkData && farms.length === 0 && (
+                        <p className={styles.muted}>Create your first farm to enable Telegram connection.</p>
+                      )}
                     </div>
 
                     <button
                       type="button"
                       className={styles.primaryBtn}
                       onClick={() => void onOpenTelegramConnection()}
-                      disabled={telegramLinkLoading || !telegramLinkData?.telegram_link}
+                      disabled={farms.length === 0 || telegramLinkLoading || !telegramLinkData?.telegram_link}
                     >
                       Open in Telegram
                     </button>

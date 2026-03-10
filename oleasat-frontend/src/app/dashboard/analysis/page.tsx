@@ -177,6 +177,9 @@ export default function DashboardAnalysisListPage() {
               <Link className={styles.navLink} href="/dashboard?view=farms">
                 Farms management
               </Link>
+              <Link className={styles.navLink} href="/dashboard?view=telegram">
+                Telegram connection
+              </Link>
               <Link className={`${styles.navLink} ${styles.navLinkActive}`} href="/dashboard/analysis">
                 Analyze history
               </Link>
