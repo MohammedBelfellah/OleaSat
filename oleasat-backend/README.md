@@ -23,6 +23,9 @@
   - [Register Farm](#5-register-farm)
   - [Calculate Irrigation](#6-calculate-irrigation)
   - [Latest Saved Analysis](#6b-latest-saved-analysis)
+  - [Analysis Runs List](#6c-analysis-runs-list)
+  - [Analysis Run Detail](#6d-analysis-run-detail)
+  - [Create Analysis Run](#6e-create-analysis-run)
   - [Analyze (Direct)](#7-analyze-direct)
   - [Satellite Indices](#8-satellite-indices)
   - [Farm Water Stress Map](#9-farm-water-stress-map)
@@ -102,18 +105,19 @@ curl http://localhost:8001/api/v1/health
 
 ## Environment Variables
 
-| Variable              | Required | Default                                  | Description                                        |
-| --------------------- | -------- | ---------------------------------------- | -------------------------------------------------- |
-| `JWT_SECRET_KEY`      | **Yes**  | `change-me-in-production`                | 256-bit hex key for signing JWTs                   |
-| `JWT_EXPIRE_MINUTES`  | No       | `1440` (24h)                             | Token expiry in minutes                            |
-| `DATABASE_URL`        | No       | `sqlite:///./data/oleasat.db`            | SQLAlchemy database URL                            |
-| `TELEGRAM_BOT_TOKEN`  | No\*     | —                                        | Telegram bot token from @BotFather                 |
-| `OPEN_METEO_BASE_URL` | No       | `https://api.open-meteo.com/v1/forecast` | Weather API base URL                               |
-| `SH_CLIENT_ID`        | No\*\*   | —                                        | Sentinel Hub OAuth2 client ID                      |
-| `SH_CLIENT_SECRET`    | No\*\*   | —                                        | Sentinel Hub OAuth2 secret                         |
-| `SH_BASE_URL`         | No       | `https://services.sentinel-hub.com`      | Sentinel Hub API base                              |
-| `SH_TOKEN_URL`        | No       | (auto)                                   | Sentinel Hub token endpoint                        |
-| `GROQ_API_KEY`        | No       | —                                        | Groq API key for AI-personalized Telegram messages |
+| Variable               | Required | Default                                       | Description                                        |
+| ---------------------- | -------- | --------------------------------------------- | -------------------------------------------------- |
+| `JWT_SECRET_KEY`       | **Yes**  | `change-me-in-production`                     | 256-bit hex key for signing JWTs                   |
+| `JWT_EXPIRE_MINUTES`   | No       | `1440` (24h)                                  | Token expiry in minutes                            |
+| `DATABASE_URL`         | No       | `sqlite:///./data/oleasat.db`                 | SQLAlchemy database URL                            |
+| `TELEGRAM_BOT_TOKEN`   | No\*     | —                                             | Telegram bot token from @BotFather                 |
+| `OPEN_METEO_BASE_URL`  | No       | `https://api.open-meteo.com/v1/forecast`      | Weather API base URL                               |
+| `SH_CLIENT_ID`         | No\*\*   | —                                             | Sentinel Hub OAuth2 client ID                      |
+| `SH_CLIENT_SECRET`     | No\*\*   | —                                             | Sentinel Hub OAuth2 secret                         |
+| `SH_BASE_URL`          | No       | `https://services.sentinel-hub.com`           | Sentinel Hub API base                              |
+| `SH_TOKEN_URL`         | No       | (auto)                                        | Sentinel Hub token endpoint                        |
+| `GROQ_API_KEY`         | No       | —                                             | Groq API key for AI-personalized Telegram messages |
+| `CORS_ALLOWED_ORIGINS` | No       | `http://localhost:3000,http://localhost:5173` | Comma-separated frontend origins allowed by CORS   |
 
 > \*If `TELEGRAM_BOT_TOKEN` is not set, the bot and scheduler start silently — the API works without Telegram.  
 > \*\*If Sentinel Hub credentials are not set, satellite endpoints return deterministic mock values (`source: "mock"`).
@@ -170,6 +174,9 @@ FastAPI auto-generates interactive documentation:
 | DELETE | `/api/v1/farms/{farm_id}`                 | Owner or ADMIN           |
 | POST   | `/api/v1/calculate`                       | Owner or ADMIN           |
 | GET    | `/api/v1/farms/{farm_id}/latest-analysis` | Owner or ADMIN           |
+| GET    | `/api/v1/analysis/runs`                   | Owner or ADMIN           |
+| GET    | `/api/v1/analysis/runs/{analysis_id}`     | Owner or ADMIN           |
+| POST   | `/api/v1/analysis/runs`                   | Owner or ADMIN           |
 | POST   | `/api/v1/analyze`                         | Any authenticated user   |
 | POST   | `/api/v1/satellite/indices`               | Any authenticated user   |
 | GET    | `/api/v1/farms/{farm_id}/water-map`       | Owner or ADMIN           |
@@ -471,6 +478,114 @@ Use this endpoint to load the analysis page quickly, then trigger a fresh run on
 | `farmer_not_found`  | 404  | Unknown farm id               |
 | `not_your_farm`     | 403  | Non-admin accesses other farm |
 | `no_saved_analysis` | 404  | No cached analysis yet        |
+
+---
+
+### 6c. Analysis Runs List
+
+|            |                         |
+| ---------- | ----------------------- |
+| **Method** | `GET`                   |
+| **Path**   | `/api/v1/analysis/runs` |
+| **Auth**   | Bearer token            |
+
+Lists persisted analysis runs from DB (no new Sentinel/Open-Meteo calls).
+
+**Query params:**
+
+| Param     | Type   | Required | Description           |
+| --------- | ------ | -------- | --------------------- |
+| `farm_id` | string | No       | Filter by one farm id |
+
+**Response 200 (trimmed):**
+
+```json
+{
+  "runs": [
+    {
+      "id": "3f4f5d35-24ad-41df-aaf7-1017e5bc0f2a",
+      "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+      "farmer_name": "Ahmed",
+      "start_date": "2026-02-04",
+      "end_date": "2026-03-06",
+      "created_at": "2026-03-08T10:11:12.123456",
+      "recommendation": "IRRIGATE",
+      "litres_per_tree": 24,
+      "total_m3": 2.88,
+      "stress_mode": false,
+      "has_water_map": true
+    }
+  ]
+}
+```
+
+---
+
+### 6d. Analysis Run Detail
+
+|            |                                       |
+| ---------- | ------------------------------------- |
+| **Method** | `GET`                                 |
+| **Path**   | `/api/v1/analysis/runs/{analysis_id}` |
+| **Auth**   | Bearer token                          |
+
+Returns one saved analysis plus its saved water map from DB.
+
+| Error                 | Code | When                                   |
+| --------------------- | ---- | -------------------------------------- |
+| `analysis_not_found`  | 404  | Unknown analysis id                    |
+| `farmer_not_found`    | 404  | Linked farm not found                  |
+| `not_your_farm`       | 403  | Non-admin accessing another user's run |
+| `water_map_not_found` | 404  | Saved run exists but no persisted map  |
+
+---
+
+### 6e. Create Analysis Run
+
+|            |                         |
+| ---------- | ----------------------- |
+| **Method** | `POST`                  |
+| **Path**   | `/api/v1/analysis/runs` |
+| **Auth**   | Bearer token            |
+
+Creates a new run for a farm/date window and stores both analysis + water map.
+If the same farm/date window already exists, returns existing run id without recomputation.
+
+**Request body:**
+
+```json
+{
+  "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "start_date": "2026-02-01",
+  "end_date": "2026-03-07"
+}
+```
+
+**Response 200 (existing):**
+
+```json
+{
+  "status": "existing",
+  "message": "Analysis already exists for this farm and date range.",
+  "analysis_id": "3f4f5d35-24ad-41df-aaf7-1017e5bc0f2a",
+  "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "start_date": "2026-02-01",
+  "end_date": "2026-03-07"
+}
+```
+
+**Response 200 (created):**
+
+```json
+{
+  "status": "created",
+  "message": "Analysis created successfully.",
+  "analysis_id": "3f4f5d35-24ad-41df-aaf7-1017e5bc0f2a",
+  "farm_id": "36201fe0-4deb-4809-bdab-01b47593e4be",
+  "start_date": "2026-02-01",
+  "end_date": "2026-03-07"
+}
+```
 
 ---
 
@@ -969,7 +1084,7 @@ oleasat-backend/
     ├── main.py               # FastAPI app + CORS + lifespan (bot + scheduler)
     ├── config.py             # Settings from environment variables
     ├── auth.py               # JWT + bcrypt + get_current_user dependency
-    ├── routes.py             # 20 API endpoints with auth + RBAC
+    ├── routes.py             # 24 API endpoints with auth + RBAC
     ├── services.py           # Business logic (Satellite + Weather + FAO-56)
     ├── ai_messages.py        # Groq-powered AI personalization (with fallback)
     ├── schemas.py            # Pydantic request/response models
@@ -1139,6 +1254,28 @@ const data = await res.json();
 // data.recommendation → "SKIP" | "IRRIGATE" | "URGENT"
 // data.litres_per_tree, data.total_litres, data.stress_mode, etc.
 // data.from_cache, data.cached_at
+
+// 3) Optional analysis history (DB-persisted runs)
+const runs = await fetch(`${API_BASE}/analysis/runs?farm_id=${farm_id}`, {
+  headers,
+}).then((r) => r.json());
+
+const createdOrExisting = await fetch(`${API_BASE}/analysis/runs`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    farm_id,
+    start_date: "2026-02-01",
+    end_date: "2026-03-07",
+  }),
+}).then((r) => r.json());
+
+const runDetail = await fetch(
+  `${API_BASE}/analysis/runs/${createdOrExisting.analysis_id}`,
+  {
+    headers,
+  },
+).then((r) => r.json());
 ```
 
 ### 5. Telegram Link

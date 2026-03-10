@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.config import settings
 from app.database import apply_runtime_migrations, engine
 from app.models import Base
 from app.routes import router
@@ -100,9 +101,15 @@ app = FastAPI(
 # CORS — allow the frontend dev server and production origin
 from fastapi.middleware.cors import CORSMiddleware
 
+cors_origins = [origin for origin in settings.cors_allowed_origins if origin != "*"]
+if not cors_origins:
+    cors_origins = ["http://localhost:3000", "http://localhost:5173"]
+if "*" in settings.cors_allowed_origins:
+    logger.warning("Ignoring wildcard '*' in CORS_ALLOWED_ORIGINS because allow_credentials=True")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

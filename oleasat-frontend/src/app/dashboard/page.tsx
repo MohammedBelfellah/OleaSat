@@ -9,10 +9,13 @@ import styles from "./page.module.css";
 import {
   ApiError,
   authMe,
+  fetchTelegramLink,
   fetchFeedbackSummary,
   fetchFarmDetail,
   fetchFarms,
   fetchMetricsSummary,
+  submitFeedback,
+  type FeedbackType,
   type FeedbackSummaryResponse,
   type FarmDetailResponse,
   type FarmListItem,
@@ -41,6 +44,8 @@ const SAMPLE_POLYGON: number[][] = [
   [-5.5, 35.75],
   [-5.56, 35.73],
 ];
+
+const FEEDBACK_TYPES: FeedbackType[] = ["WORKED", "TOO_MUCH", "TOO_LITTLE", "NOT_APPLIED"];
 
 function toError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -129,6 +134,11 @@ export default function DashboardPage() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummaryResponse | null>(null);
+  const [feedbackType, setFeedbackType] = useState<FeedbackType>("WORKED");
+  const [feedbackRating, setFeedbackRating] = useState("5");
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSubmitMessage, setFeedbackSubmitMessage] = useState<string | null>(null);
 
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -218,6 +228,96 @@ export default function DashboardPage() {
     return { totalHectares, stressCount };
   }, [farms, farmDetails]);
 
+  const soilShares = useMemo(() => {
+    const buckets: Record<string, number> = {
+      SANDY: 0,
+      MEDIUM: 0,
+      CLAY: 0,
+      OTHER: 0,
+    };
+
+    farms.forEach((farm) => {
+      const raw = (farm.soil_type || "OTHER").toUpperCase();
+      if (raw === "SANDY" || raw === "MEDIUM" || raw === "CLAY") {
+        buckets[raw] += 1;
+      } else {
+        buckets.OTHER += 1;
+      }
+    });
+
+    const total = farms.length;
+    const buildPercent = (value: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
+
+    return [
+      { key: "SANDY", label: "Sandy", value: buckets.SANDY, percent: buildPercent(buckets.SANDY) },
+      { key: "MEDIUM", label: "Medium", value: buckets.MEDIUM, percent: buildPercent(buckets.MEDIUM) },
+      { key: "CLAY", label: "Clay", value: buckets.CLAY, percent: buildPercent(buckets.CLAY) },
+      { key: "OTHER", label: "Other", value: buckets.OTHER, percent: buildPercent(buckets.OTHER) },
+    ];
+  }, [farms]);
+
+  const soilSegments = useMemo(() => {
+    let start = 0;
+    return soilShares.map((item) => {
+      const segment = { ...item, start };
+      start += item.percent;
+      return segment;
+    });
+  }, [soilShares]);
+
+  const ageBars = useMemo(() => {
+    let youngTrees = 0;
+    let adultTrees = 0;
+
+    farms.forEach((farm) => {
+      const trees = farm.tree_count ?? 0;
+      const age = (farm.tree_age || "").toUpperCase();
+      if (age === "YOUNG") {
+        youngTrees += trees;
+      } else {
+        adultTrees += trees;
+      }
+    });
+
+    const total = youngTrees + adultTrees;
+    const buildPercent = (value: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
+
+    return [
+      { key: "YOUNG", label: "Young trees", value: youngTrees, percent: buildPercent(youngTrees) },
+      { key: "ADULT", label: "Adult trees", value: adultTrees, percent: buildPercent(adultTrees) },
+    ];
+  }, [farms]);
+
+  const stressPercent = useMemo(() => {
+    if (farms.length === 0) return 0;
+    return Math.round((summary.stressCount / farms.length) * 100);
+  }, [farms.length, summary.stressCount]);
+
+  const activePercent = useMemo(() => {
+    if (farms.length === 0) return 0;
+    const active = metrics?.farmers_active || 0;
+    return Math.min(100, Math.round((active / farms.length) * 100));
+  }, [metrics?.farmers_active, farms.length]);
+
+  const weeklyAlertsPercent = useMemo(() => {
+    const alerts = metrics?.alerts_sent_this_week || 0;
+    const target = Math.max(1, farms.length * 2);
+    return Math.min(100, Math.round((alerts / target) * 100));
+  }, [metrics?.alerts_sent_this_week, farms.length]);
+
+  const avgEfficiencyPercent = useMemo(() => {
+    const values = farms
+      .map((farm) => farm.irrigation_efficiency)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+    if (values.length === 0) return 0;
+    const avg = values.reduce((acc, value) => acc + value, 0) / values.length;
+    return Math.round(avg * 100);
+  }, [farms]);
+
+  const ringCircumference = useMemo(() => 2 * Math.PI * 42, []);
+  const stressArc = useMemo(() => (stressPercent / 100) * ringCircumference, [stressPercent, ringCircumference]);
+
   const selectedFarmDetail = useMemo(() => {
     if (!selectedFarmId) return null;
     return farmDetails.find((item) => item.farm.id === selectedFarmId) || null;
@@ -303,6 +403,56 @@ export default function DashboardPage() {
     void loadFeedback(feedbackFarmId, controller.signal);
     return () => controller.abort();
   }, [view, feedbackFarmId, loadFeedback]);
+
+  async function onSubmitFeedback(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!feedbackFarmId) return;
+
+    setFeedbackSubmitting(true);
+    setFeedbackError(null);
+    setFeedbackSubmitMessage(null);
+
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("No token found. Login first.");
+
+      const parsedRating = Number(feedbackRating);
+      const ratingValue = Number.isFinite(parsedRating) ? parsedRating : undefined;
+
+      await submitFeedback(token, {
+        farmer_id: feedbackFarmId,
+        feedback_type: feedbackType,
+        rating: ratingValue,
+        comment: feedbackComment.trim() || undefined,
+      });
+
+      setFeedbackSubmitMessage("Farmer review submitted successfully.");
+      setFeedbackComment("");
+      await loadFeedback(feedbackFarmId);
+    } catch (error) {
+      setFeedbackError(toError(error));
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }
+
+  async function onOpenFeedbackTelegram() {
+    if (!feedbackFarmId) return;
+
+    setFeedbackError(null);
+    setFeedbackSubmitMessage(null);
+
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("No token found. Login first.");
+
+      const link = await fetchTelegramLink(token, feedbackFarmId);
+      window.open(link.telegram_link, "_blank", "noopener,noreferrer");
+      setFeedbackSubmitMessage(link.linked ? "Telegram linked. Chat opened." : "Telegram link opened.");
+    } catch (error) {
+      setFeedbackError(toError(error));
+    }
+  }
 
   useEffect(() => {
     if (view !== "profile") return;
@@ -525,27 +675,108 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className={styles.actionsGrid}>
-                  <button type="button" className={styles.actionCard} onClick={() => setView("farms")}>
-                    <strong>Farms management</strong>
-                    <span>Open all farms and inspect details.</span>
-                  </button>
-                  <button type="button" className={styles.actionCard} onClick={openAddFarm}>
-                    <strong>Register farm</strong>
-                    <span>Create a new farm profile and polygon.</span>
-                  </button>
-                  <Link className={styles.actionCard} href="/dashboard/analysis">
-                    <strong>Run analysis</strong>
-                    <span>Open saved analyses and create a new one.</span>
-                  </Link>
-                  <button type="button" className={styles.actionCard} onClick={() => setView("feedback")}>
-                    <strong>Feedback loop</strong>
-                    <span>Submit field outcome and quality signals.</span>
-                  </button>
-                  <button type="button" className={styles.actionCard} onClick={() => setView("profile")}>
-                    <strong>Current user</strong>
-                    <span>View active account details.</span>
-                  </button>
+                <div className={styles.chartsGrid}>
+                  <article className={styles.chartCard}>
+                    <h4>Soil mix</h4>
+                    <svg viewBox="0 0 100 10" className={styles.stackSvg} role="img" aria-label="Soil distribution">
+                      {soilSegments.map((item) => (
+                        <rect
+                          key={item.key}
+                          x={item.start}
+                          y={0}
+                          width={item.percent}
+                          height={10}
+                          className={`${styles.stackRect} ${
+                            item.key === "SANDY"
+                              ? styles.soilSandy
+                              : item.key === "MEDIUM"
+                                ? styles.soilMedium
+                                : item.key === "CLAY"
+                                  ? styles.soilClay
+                                  : styles.soilOther
+                          }`}
+                        />
+                      ))}
+                    </svg>
+                    <div className={styles.legendList}>
+                      {soilShares.map((item) => (
+                        <p key={item.key} className={styles.legendItem}>
+                          <span className={styles.legendLeft}>
+                            <span
+                              className={`${styles.legendSwatch} ${
+                                item.key === "SANDY"
+                                  ? styles.soilSandy
+                                  : item.key === "MEDIUM"
+                                    ? styles.soilMedium
+                                    : item.key === "CLAY"
+                                      ? styles.soilClay
+                                      : styles.soilOther
+                              }`}
+                            />
+                            {item.label}
+                          </span>
+                          <strong>{item.value}</strong>
+                        </p>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className={styles.chartCard}>
+                    <h4>Tree age split</h4>
+                    <div className={styles.barRows}>
+                      {ageBars.map((item) => (
+                        <div key={item.key} className={styles.barRow}>
+                          <span>{item.label}</span>
+                          <progress
+                            className={`${styles.ageProgress} ${item.key === "YOUNG" ? styles.ageYoung : styles.ageAdult}`}
+                            value={item.percent}
+                            max={100}
+                          />
+                          <strong>{fmt(item.value, 0)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className={styles.chartCard}>
+                    <h4>Health snapshot</h4>
+                    <div className={styles.ringBlock}>
+                      <div className={styles.ring}>
+                        <svg viewBox="0 0 100 100" className={styles.ringSvg} aria-hidden="true">
+                          <circle cx="50" cy="50" r="42" className={styles.ringTrack} />
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="42"
+                            className={styles.ringStress}
+                            strokeDasharray={`${stressArc} ${Math.max(ringCircumference - stressArc, 0)}`}
+                          />
+                        </svg>
+                        <div className={styles.ringInner}>
+                          <strong>{stressPercent}%</strong>
+                          <span>Stress</span>
+                        </div>
+                      </div>
+
+                      <div className={styles.kpiList}>
+                        <div className={styles.kpiRow}>
+                          <span>Active farmers</span>
+                          <progress className={`${styles.kpiProgress} ${styles.kpiActive}`} value={activePercent} max={100} />
+                          <strong>{activePercent}%</strong>
+                        </div>
+                        <div className={styles.kpiRow}>
+                          <span>Weekly alerts load</span>
+                          <progress className={`${styles.kpiProgress} ${styles.kpiAlerts}`} value={weeklyAlertsPercent} max={100} />
+                          <strong>{weeklyAlertsPercent}%</strong>
+                        </div>
+                        <div className={styles.kpiRow}>
+                          <span>Avg irrigation efficiency</span>
+                          <progress className={`${styles.kpiProgress} ${styles.kpiEfficiency}`} value={avgEfficiencyPercent} max={100} />
+                          <strong>{avgEfficiencyPercent}%</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
                 </div>
               </section>
             )}
@@ -816,14 +1047,24 @@ export default function DashboardPage() {
               <section className={styles.panel}>
                 <div className={styles.panelHeader}>
                   <h3>Feedback overview</h3>
-                  <button
-                    type="button"
-                    className={styles.secondaryBtn}
-                    onClick={() => void loadFeedback(feedbackFarmId)}
-                    disabled={feedbackLoading || !feedbackFarmId}
-                  >
-                    {feedbackLoading ? "Loading..." : "Refresh"}
-                  </button>
+                  <div className={styles.inlineActions}>
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      onClick={onOpenFeedbackTelegram}
+                      disabled={!feedbackFarmId}
+                    >
+                      Open Telegram chat
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      onClick={() => void loadFeedback(feedbackFarmId)}
+                      disabled={feedbackLoading || !feedbackFarmId}
+                    >
+                      {feedbackLoading ? "Loading..." : "Refresh"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className={styles.analysisForm}>
@@ -842,7 +1083,48 @@ export default function DashboardPage() {
                   </label>
                 </div>
 
+                <form className={styles.feedbackComposer} onSubmit={onSubmitFeedback}>
+                  <div className={styles.formGrid}>
+                    <label className={styles.fieldBlock}>
+                      Feedback type
+                      <select value={feedbackType} onChange={(event) => setFeedbackType(event.target.value as FeedbackType)}>
+                        {FEEDBACK_TYPES.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className={styles.fieldBlock}>
+                      Rating (1-5)
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={feedbackRating}
+                        onChange={(event) => setFeedbackRating(event.target.value)}
+                      />
+                    </label>
+
+                    <label className={`${styles.fieldBlock} ${styles.fieldWide}`}>
+                      Farmer review
+                      <textarea
+                        rows={3}
+                        value={feedbackComment}
+                        onChange={(event) => setFeedbackComment(event.target.value)}
+                        placeholder="Type what the farmer said about the recommendation..."
+                      />
+                    </label>
+                  </div>
+
+                  <div className={styles.inlineActions}>
+                    <button type="submit" className={styles.primaryBtn} disabled={feedbackSubmitting || !feedbackFarmId}>
+                      {feedbackSubmitting ? "Submitting..." : "Send farmer review"}
+                    </button>
+                  </div>
+                </form>
+
                 {feedbackError && <p className={styles.errorInline}>{feedbackError}</p>}
+                {feedbackSubmitMessage && <p className={styles.successInline}>{feedbackSubmitMessage}</p>}
 
                 {feedbackSummary && (
                   <>

@@ -13,7 +13,7 @@ import {
   type AnalysisRunItem,
   type FarmListItem,
 } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { clearAccessToken, getAccessToken } from "@/lib/auth";
 
 function toError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -157,6 +157,11 @@ export default function DashboardAnalysisListPage() {
     }
   }
 
+  function onLogout() {
+    clearAccessToken();
+    router.push("/auth/login");
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
@@ -175,6 +180,18 @@ export default function DashboardAnalysisListPage() {
               <Link className={`${styles.navLink} ${styles.navLinkActive}`} href="/dashboard/analysis">
                 Analyze history
               </Link>
+            </div>
+
+            <div className={styles.navBottom}>
+              <Link className={styles.navLink} href="/dashboard?view=feedback">
+                Feedback
+              </Link>
+              <Link className={styles.navLink} href="/dashboard?view=profile">
+                Profile
+              </Link>
+              <button type="button" className={`${styles.navLink} ${styles.navLinkDanger}`} onClick={onLogout}>
+                Logout
+              </button>
             </div>
           </aside>
 

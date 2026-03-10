@@ -6,6 +6,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _parse_csv_env(raw_value: str, fallback: list[str]) -> list[str]:
+    values = [entry.strip() for entry in raw_value.split(",") if entry.strip()]
+    return values or fallback
+
+
 @dataclass
 class Settings:
     app_name: str = os.getenv("APP_NAME", "OleaSat Backend")
@@ -21,6 +26,13 @@ class Settings:
     jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
     jwt_expire_minutes: str = os.getenv("JWT_EXPIRE_MINUTES", "1440")
     groq_api_key: str | None = os.getenv("GROQ_API_KEY")
+    cors_allowed_origins: list[str] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        self.cors_allowed_origins = _parse_csv_env(
+            os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173"),
+            ["http://localhost:3000", "http://localhost:5173"],
+        )
 
 
 settings = Settings()

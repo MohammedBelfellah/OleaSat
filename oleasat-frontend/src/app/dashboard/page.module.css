@@ -318,6 +318,11 @@
   align-items: end;
 }
 
+.feedbackComposer {
+  display: grid;
+  gap: 10px;
+}
+
 .resultGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -346,6 +351,257 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chartCard {
+  border: 1px solid #d5e1c6;
+  border-radius: 10px;
+  background: #f8fbf4;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.chartCard h4 {
+  color: #24361b;
+  font-size: 0.92rem;
+}
+
+.stackSvg {
+  height: 14px;
+  width: 100%;
+  border: 1px solid #d3e0c4;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #eef6e3;
+  display: block;
+}
+
+.stackRect {
+  height: 100%;
+}
+
+.legendList {
+  display: grid;
+  gap: 6px;
+}
+
+.legendItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #334a27;
+  font-size: 0.82rem;
+}
+
+.legendLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.soilSandy {
+  background: #d4b06b;
+  fill: #d4b06b;
+}
+
+.soilMedium {
+  background: #8fbf67;
+  fill: #8fbf67;
+}
+
+.soilClay {
+  background: #7ca0c9;
+  fill: #7ca0c9;
+}
+
+.soilOther {
+  background: #c2c7cf;
+  fill: #c2c7cf;
+}
+
+.barRows {
+  display: grid;
+  gap: 7px;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 98px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  color: #334a27;
+  font-size: 0.82rem;
+}
+
+.ageProgress {
+  appearance: none;
+  width: 100%;
+  height: 10px;
+  border: none;
+  background: transparent;
+}
+
+.ageProgress::-webkit-progress-bar {
+  border: 1px solid #d3e0c4;
+  border-radius: 999px;
+  background: #edf5e2;
+  overflow: hidden;
+}
+
+.ageProgress::-webkit-progress-value {
+  border-radius: 999px;
+}
+
+.ageProgress::-moz-progress-bar {
+  border-radius: 999px;
+}
+
+.ageYoung::-webkit-progress-value {
+  background: #95c16b;
+}
+
+.ageYoung::-moz-progress-bar {
+  background: #95c16b;
+}
+
+.ageAdult::-webkit-progress-value {
+  background: #4f7f37;
+}
+
+.ageAdult::-moz-progress-bar {
+  background: #4f7f37;
+}
+
+.ringBlock {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.ring {
+  position: relative;
+  width: 110px;
+  height: 110px;
+}
+
+.ringSvg {
+  width: 110px;
+  height: 110px;
+}
+
+.ringTrack {
+  fill: none;
+  stroke: #89ba62;
+  stroke-width: 14;
+}
+
+.ringStress {
+  fill: none;
+  stroke: #c4573e;
+  stroke-width: 14;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.ringInner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 74px;
+  height: 74px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #d6e1c8;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: #2a4020;
+  font-size: 0.72rem;
+}
+
+.ringInner strong {
+  font-size: 0.95rem;
+}
+
+.kpiList {
+  display: grid;
+  gap: 8px;
+}
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  color: #344c28;
+  font-size: 0.8rem;
+}
+
+.kpiRow strong {
+  justify-self: end;
+  color: #263d1b;
+}
+
+.kpiProgress {
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border: none;
+  background: transparent;
+}
+
+.kpiProgress::-webkit-progress-bar {
+  border: 1px solid #d3e0c4;
+  border-radius: 999px;
+  background: #edf5e2;
+  overflow: hidden;
+}
+
+.kpiProgress::-webkit-progress-value {
+  border-radius: 999px;
+}
+
+.kpiProgress::-moz-progress-bar {
+  border-radius: 999px;
+}
+
+.kpiActive::-webkit-progress-value {
+  background: #6f9a49;
+}
+
+.kpiActive::-moz-progress-bar {
+  background: #6f9a49;
+}
+
+.kpiAlerts::-webkit-progress-value {
+  background: #c28149;
+}
+
+.kpiAlerts::-moz-progress-bar {
+  background: #c28149;
+}
+
+.kpiEfficiency::-webkit-progress-value {
+  background: #6f9bc2;
+}
+
+.kpiEfficiency::-moz-progress-bar {
+  background: #6f9bc2;
 }
 
 .actionCard {
@@ -621,6 +877,10 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+
   .farmsLayout {
     grid-template-columns: 1fr;
   }
@@ -638,5 +898,10 @@
 
   .actionsGrid {
     grid-template-columns: 1fr;
+  }
+
+  .ringBlock {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
 }
