@@ -120,9 +120,9 @@ export default function ToolsPage() {
           </div>
           <div className={styles.links}>
             <Link href="/dashboard">Dashboard</Link>
+            <Link href="/dashboard?view=farms">Farms workspace</Link>
             <Link href="/analysis">Analysis</Link>
             <Link href="/feedback">Feedback</Link>
-            <Link href="/admin">Admin</Link>
           </div>
         </header>
 

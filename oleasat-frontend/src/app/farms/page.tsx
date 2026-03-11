@@ -145,7 +145,7 @@ export default function FarmsPage() {
           </div>
           <div className={styles.links}>
             <Link href="/dashboard">Dashboard</Link>
-            <Link href="/farms/new">+ New farm</Link>
+            <Link href="/dashboard?view=farms">Add farm workspace</Link>
             <Link href="/analysis">Analysis</Link>
             <Link href="/feedback">Feedback</Link>
             <Link href="/tools">Tools</Link>

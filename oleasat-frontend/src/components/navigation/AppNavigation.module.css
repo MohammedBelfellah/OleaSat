@@ -1,0 +1,146 @@
+.sidebar {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 14px;
+  min-height: 100%;
+}
+
+.sidebarBrand {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 26px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(255, 188, 122, 0.34),
+      transparent 36%
+    ),
+    linear-gradient(160deg, #2d2a1f 0%, #403224 45%, #914f1e 100%);
+  color: #fff3e8;
+  box-shadow: 0 18px 40px rgba(88, 54, 21, 0.22);
+}
+
+.sidebarEyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ffd1a6;
+}
+
+.sidebarBrand h2 {
+  font-size: 1.2rem;
+}
+
+.sidebarCopy {
+  color: rgba(255, 240, 227, 0.86);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.sidebarGroup,
+.sidebarFooter {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebarFooter {
+  align-content: end;
+}
+
+.navItem,
+.routePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(230, 161, 94, 0.2);
+  color: #4b2b12;
+  background: rgba(255, 249, 244, 0.88);
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.navItem {
+  appearance: none;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 18px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(148, 92, 35, 0.06);
+}
+
+.navItem:hover,
+.routePill:hover {
+  transform: translateY(-1px);
+  border-color: rgba(206, 110, 26, 0.38);
+  background: rgba(255, 243, 230, 0.98);
+}
+
+.navItemActive,
+.routePillActive {
+  border-color: #d66e1d;
+  background: linear-gradient(180deg, #fff1e4 0%, #ffd7b2 100%);
+  box-shadow: 0 14px 28px rgba(182, 96, 24, 0.18);
+}
+
+.navItemDanger {
+  appearance: none;
+  cursor: pointer;
+  text-align: left;
+  background: rgba(255, 241, 239, 0.92);
+  border-color: rgba(196, 78, 45, 0.24);
+  color: #8d2f1c;
+}
+
+.navItemDanger:hover {
+  background: rgba(255, 232, 226, 0.98);
+  border-color: rgba(196, 78, 45, 0.42);
+}
+
+.navIcon,
+.routePillIcon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  flex: 0 0 auto;
+}
+
+.navIcon svg,
+.routePillIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.routePills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-content: flex-start;
+}
+
+.routePill {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    grid-template-rows: auto;
+  }
+
+  .sidebarFooter {
+    align-content: start;
+  }
+}

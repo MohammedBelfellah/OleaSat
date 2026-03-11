@@ -47,6 +47,78 @@ function fmtDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
 }
 
+type SidebarGlyphName = "spark" | "farm" | "message" | "water" | "feedback" | "profile" | "logout";
+
+function SidebarGlyph({ name, className }: { name: SidebarGlyphName; className?: string }) {
+  const classes = className ? `${styles.glyph} ${className}` : styles.glyph;
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: classes,
+    "aria-hidden": true,
+  };
+
+  switch (name) {
+    case "spark":
+      return (
+        <svg {...common}>
+          <path d="m12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8Z" />
+          <path d="M5 18h.01" />
+          <path d="M19 18h.01" />
+        </svg>
+      );
+    case "farm":
+      return (
+        <svg {...common}>
+          <path d="M4 18c1.5-4 4.3-6 8-6s6.5 2 8 6" />
+          <path d="M12 12V4" />
+          <path d="M12 4c-2.4 0-4 1.7-4 4 2.4 0 4-1.6 4-4Z" />
+          <path d="M12 4c2.4 0 4 1.7 4 4-2.4 0-4-1.6-4-4Z" />
+        </svg>
+      );
+    case "message":
+      return (
+        <svg {...common}>
+          <path d="m21 4-3 15-5.5-4-3 2 1-5 10.5-8z" />
+          <path d="M10.5 12 18 19" />
+        </svg>
+      );
+    case "water":
+      return (
+        <svg {...common}>
+          <path d="M12 3s5 5.3 5 9a5 5 0 0 1-10 0c0-3.7 5-9 5-9Z" />
+          <path d="M10 15c.6.7 1.2 1 2 1 1.7 0 3-1.3 3-3" />
+        </svg>
+      );
+    case "feedback":
+      return (
+        <svg {...common}>
+          <path d="M5 6h14v9H8l-3 3z" />
+          <path d="M9 10h6" />
+        </svg>
+      );
+    case "profile":
+      return (
+        <svg {...common}>
+          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+          <path d="M5 20a7 7 0 0 1 14 0" />
+        </svg>
+      );
+    case "logout":
+      return (
+        <svg {...common}>
+          <path d="M10 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2" />
+          <path d="M21 12H9" />
+          <path d="m16 7 5 5-5 5" />
+        </svg>
+      );
+  }
+}
+
 export default function DashboardAnalysisListPage() {
   const router = useRouter();
 
@@ -172,34 +244,55 @@ export default function DashboardAnalysisListPage() {
 
             <div className={styles.navList}>
               <Link className={styles.navLink} href="/dashboard">
-                Farmer action center
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="spark" className={styles.navGlyph} />
+                  <span>Farmer action center</span>
+                </span>
               </Link>
               <Link className={styles.navLink} href="/dashboard?view=farms">
-                Farms management
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="farm" className={styles.navGlyph} />
+                  <span>Farms management</span>
+                </span>
               </Link>
               <Link className={styles.navLink} href="/dashboard?view=telegram">
-                Telegram connection
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="message" className={styles.navGlyph} />
+                  <span>Telegram connection</span>
+                </span>
               </Link>
               <Link className={`${styles.navLink} ${styles.navLinkActive}`} href="/dashboard/analysis">
-                Analyze history
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="water" className={styles.navGlyph} />
+                  <span>Analyze history</span>
+                </span>
               </Link>
             </div>
 
             <div className={styles.navBottom}>
               <Link className={styles.navLink} href="/dashboard?view=feedback">
-                Feedback
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="feedback" className={styles.navGlyph} />
+                  <span>Feedback</span>
+                </span>
               </Link>
               <Link className={styles.navLink} href="/dashboard?view=profile">
-                Profile
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="profile" className={styles.navGlyph} />
+                  <span>Profile</span>
+                </span>
               </Link>
               <button type="button" className={`${styles.navLink} ${styles.navLinkDanger}`} onClick={onLogout}>
-                Logout
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="logout" className={styles.navGlyph} />
+                  <span>Logout</span>
+                </span>
               </button>
             </div>
           </aside>
 
           <main className={styles.main}>
-            <header className={styles.topbar}>
+            <header className={`${styles.topbar} ${styles.topbarCompact}`}>
               <div>
                 <p className={styles.brand}>OleaSat</p>
                 <h1>Analysis runs</h1>

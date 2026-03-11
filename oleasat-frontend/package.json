@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@types/leaflet-draw": "^1.0.13",
     "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",

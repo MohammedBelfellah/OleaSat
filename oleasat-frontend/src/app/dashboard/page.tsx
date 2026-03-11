@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import styles from "./page.module.css";
 import {
@@ -37,7 +37,6 @@ const ParcelDrawMap = dynamic(() => import("@/components/maps/ParcelDrawMap"), {
 });
 
 type RightView = "actions" | "farms" | "telegram" | "feedback" | "profile";
-type FarmPanelView = "list" | "add";
 type AddFarmStep = 1 | 2;
 type PolygonMode = "map" | "text";
 
@@ -49,6 +48,167 @@ const SAMPLE_POLYGON: number[][] = [
 ];
 
 const FEEDBACK_TYPES: FeedbackType[] = ["WORKED", "TOO_MUCH", "TOO_LITTLE", "NOT_APPLIED"];
+
+const DEFAULT_FARM_FORM = {
+  farmerName: "Oliveira Nord",
+  phone: "+212600000000",
+  cropType: "olive",
+  treeAge: "ADULT" as TreeAge,
+  soilType: "MEDIUM" as SoilType,
+  treeCount: "120",
+  spacingM2: "100",
+  efficiency: "0.9",
+};
+
+type DashboardGlyphName =
+  | "spark"
+  | "farm"
+  | "message"
+  | "feedback"
+  | "profile"
+  | "logout"
+  | "plus"
+  | "water"
+  | "map"
+  | "text"
+  | "close"
+  | "user"
+  | "phone"
+  | "trees"
+  | "soil"
+  | "arrow";
+
+function DashboardGlyph({ name, className }: { name: DashboardGlyphName; className?: string }) {
+  const classes = className ? `${styles.glyph} ${className}` : styles.glyph;
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: classes,
+    "aria-hidden": true,
+  };
+
+  switch (name) {
+    case "spark":
+      return (
+        <svg {...common}>
+          <path d="m12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8Z" />
+          <path d="M5 18h.01" />
+          <path d="M19 18h.01" />
+        </svg>
+      );
+    case "farm":
+      return (
+        <svg {...common}>
+          <path d="M4 18c1.5-4 4.3-6 8-6s6.5 2 8 6" />
+          <path d="M12 12V4" />
+          <path d="M12 4c-2.4 0-4 1.7-4 4 2.4 0 4-1.6 4-4Z" />
+          <path d="M12 4c2.4 0 4 1.7 4 4-2.4 0-4-1.6-4-4Z" />
+        </svg>
+      );
+    case "message":
+      return (
+        <svg {...common}>
+          <path d="m21 4-3 15-5.5-4-3 2 1-5 10.5-8z" />
+          <path d="M10.5 12 18 19" />
+        </svg>
+      );
+    case "feedback":
+      return (
+        <svg {...common}>
+          <path d="M5 6h14v9H8l-3 3z" />
+          <path d="M9 10h6" />
+        </svg>
+      );
+    case "profile":
+    case "user":
+      return (
+        <svg {...common}>
+          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+          <path d="M5 20a7 7 0 0 1 14 0" />
+        </svg>
+      );
+    case "logout":
+      return (
+        <svg {...common}>
+          <path d="M10 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2" />
+          <path d="M21 12H9" />
+          <path d="m16 7 5 5-5 5" />
+        </svg>
+      );
+    case "plus":
+      return (
+        <svg {...common}>
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      );
+    case "water":
+      return (
+        <svg {...common}>
+          <path d="M12 3s5 5.3 5 9a5 5 0 0 1-10 0c0-3.7 5-9 5-9Z" />
+          <path d="M10 15c.6.7 1.2 1 2 1 1.7 0 3-1.3 3-3" />
+        </svg>
+      );
+    case "map":
+      return (
+        <svg {...common}>
+          <path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3z" />
+          <path d="M9 4v13" />
+          <path d="M15 7v13" />
+        </svg>
+      );
+    case "text":
+      return (
+        <svg {...common}>
+          <path d="M8 6H4v12h4" />
+          <path d="M16 6h4v12h-4" />
+          <path d="M10 9h4" />
+          <path d="M10 12h4" />
+          <path d="M10 15h4" />
+        </svg>
+      );
+    case "close":
+      return (
+        <svg {...common}>
+          <path d="M6 6 18 18" />
+          <path d="m18 6-12 12" />
+        </svg>
+      );
+    case "phone":
+      return (
+        <svg {...common}>
+          <path d="M6.5 4.5h3l1.3 4-2 1.7a15 15 0 0 0 5 5l1.7-2 4 1.3v3a2 2 0 0 1-2.2 2A15.8 15.8 0 0 1 4.5 6.7 2 2 0 0 1 6.5 4.5Z" />
+        </svg>
+      );
+    case "trees":
+      return (
+        <svg {...common}>
+          <path d="M7 21v-3" />
+          <path d="M17 21v-3" />
+          <path d="M7 18c-2.2 0-4-1.7-4-4 0-1.5.8-2.8 2-3.5A4.5 4.5 0 0 1 9 4c2 0 3.7 1.3 4.3 3.2A4.5 4.5 0 0 1 17 18" />
+        </svg>
+      );
+    case "soil":
+      return (
+        <svg {...common}>
+          <path d="M4 8c2 1.3 4 1.3 6 0s4-1.3 6 0 4 1.3 4 0" />
+          <path d="M4 12c2 1.3 4 1.3 6 0s4-1.3 6 0 4 1.3 4 0" />
+          <path d="M4 16c2 1.3 4 1.3 6 0s4-1.3 6 0 4 1.3 4 0" />
+        </svg>
+      );
+    case "arrow":
+      return (
+        <svg {...common}>
+          <path d="M5 12h14" />
+          <path d="m13 6 6 6-6 6" />
+        </svg>
+      );
+  }
+}
 
 function toError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -102,11 +262,11 @@ function parsePolygonText(raw: string): number[][] {
   });
 }
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState<RightView>("actions");
-  const [farmPanelView, setFarmPanelView] = useState<FarmPanelView>("list");
+  const [isAddFarmOpen, setIsAddFarmOpen] = useState(false);
   const [selectedFarmId, setSelectedFarmId] = useState("");
   const [feedbackFarmId, setFeedbackFarmId] = useState("");
 
@@ -119,14 +279,14 @@ export default function DashboardPage() {
   const [addFarmStep, setAddFarmStep] = useState<AddFarmStep>(1);
   const [polygonMode, setPolygonMode] = useState<PolygonMode>("map");
 
-  const [farmerName, setFarmerName] = useState("Oliveira Nord");
-  const [phone, setPhone] = useState("+212600000000");
-  const [cropType, setCropType] = useState("olive");
-  const [treeAge, setTreeAge] = useState<TreeAge>("ADULT");
-  const [soilType, setSoilType] = useState<SoilType>("MEDIUM");
-  const [treeCount, setTreeCount] = useState("120");
-  const [spacingM2, setSpacingM2] = useState("100");
-  const [efficiency, setEfficiency] = useState("0.9");
+  const [farmerName, setFarmerName] = useState(DEFAULT_FARM_FORM.farmerName);
+  const [phone, setPhone] = useState(DEFAULT_FARM_FORM.phone);
+  const [cropType, setCropType] = useState(DEFAULT_FARM_FORM.cropType);
+  const [treeAge, setTreeAge] = useState<TreeAge>(DEFAULT_FARM_FORM.treeAge);
+  const [soilType, setSoilType] = useState<SoilType>(DEFAULT_FARM_FORM.soilType);
+  const [treeCount, setTreeCount] = useState(DEFAULT_FARM_FORM.treeCount);
+  const [spacingM2, setSpacingM2] = useState(DEFAULT_FARM_FORM.spacingM2);
+  const [efficiency, setEfficiency] = useState(DEFAULT_FARM_FORM.efficiency);
   const [polygonPoints, setPolygonPoints] = useState<number[][]>(SAMPLE_POLYGON);
   const [polygonText, setPolygonText] = useState(prettyPolygon(SAMPLE_POLYGON));
 
@@ -212,8 +372,28 @@ export default function DashboardPage() {
       nextView === "profile"
     ) {
       setView(nextView);
+      router.replace("/dashboard", { scroll: false });
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
+
+  useEffect(() => {
+    if (view === "farms") return;
+    setIsAddFarmOpen(false);
+  }, [view]);
+
+  useEffect(() => {
+    if (!isAddFarmOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || registeringFarm) return;
+      setIsAddFarmOpen(false);
+      setAddFarmStep(1);
+      setRegisterError(null);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isAddFarmOpen, registeringFarm]);
 
   useEffect(() => {
     if (!selectedFarmId && farms[0]?.id) {
@@ -609,30 +789,22 @@ export default function DashboardPage() {
     setPolygonText(prettyPolygon(points));
   }
 
-  function addPoint(point: [number, number]) {
-    setPolygonPoints((prev) => {
-      const next = [...prev, point];
-      setPolygonText(prettyPolygon(next));
-      return next;
-    });
-  }
-
-  function movePoint(index: number, point: [number, number]) {
-    setPolygonPoints((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      const next = [...prev];
-      next[index] = point;
-      setPolygonText(prettyPolygon(next));
-      return next;
-    });
-  }
-
-  function undoPoint() {
-    setPolygon(polygonPoints.slice(0, -1));
-  }
-
   function clearPoints() {
     setPolygon([]);
+  }
+
+  function resetAddFarmFields() {
+    setFarmerName(DEFAULT_FARM_FORM.farmerName);
+    setPhone(DEFAULT_FARM_FORM.phone);
+    setCropType(DEFAULT_FARM_FORM.cropType);
+    setTreeAge(DEFAULT_FARM_FORM.treeAge);
+    setSoilType(DEFAULT_FARM_FORM.soilType);
+    setTreeCount(DEFAULT_FARM_FORM.treeCount);
+    setSpacingM2(DEFAULT_FARM_FORM.spacingM2);
+    setEfficiency(DEFAULT_FARM_FORM.efficiency);
+    setPolygonMode("map");
+    setPolygon(SAMPLE_POLYGON);
+    setAddFarmStep(1);
   }
 
   function applyPolygonText() {
@@ -688,8 +860,8 @@ export default function DashboardPage() {
 
       await loadBase();
       setSelectedFarmId(result.farm_id);
-      setFarmPanelView("list");
-      setAddFarmStep(1);
+      setIsAddFarmOpen(false);
+      resetAddFarmFields();
     } catch (error) {
       setRegisterError(toError(error));
     } finally {
@@ -698,9 +870,17 @@ export default function DashboardPage() {
   }
 
   function openAddFarm() {
-    setFarmPanelView("add");
-    setAddFarmStep(1);
+    resetAddFarmFields();
     setView("farms");
+    setIsAddFarmOpen(true);
+    setRegisterError(null);
+    setRegisterSuccess(null);
+  }
+
+  function closeAddFarm() {
+    if (registeringFarm) return;
+    setIsAddFarmOpen(false);
+    setAddFarmStep(1);
     setRegisterError(null);
   }
 
@@ -732,24 +912,36 @@ export default function DashboardPage() {
                 className={view === "actions" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
                 onClick={() => setView("actions")}
               >
-                Farmer action center
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="spark" className={styles.navGlyph} />
+                  <span>Farmer action center</span>
+                </span>
               </button>
               <button
                 type="button"
                 className={view === "farms" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
                 onClick={() => setView("farms")}
               >
-                Farms management
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="farm" className={styles.navGlyph} />
+                  <span>Farms management</span>
+                </span>
               </button>
               <button
                 type="button"
                 className={view === "telegram" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
                 onClick={() => setView("telegram")}
               >
-                Telegram connection
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="message" className={styles.navGlyph} />
+                  <span>Telegram connection</span>
+                </span>
               </button>
               <Link className={styles.navLink} href="/dashboard/analysis">
-                Analyze history
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="water" className={styles.navGlyph} />
+                  <span>Analyze history</span>
+                </span>
               </Link>
             </div>
 
@@ -759,17 +951,26 @@ export default function DashboardPage() {
                 className={view === "feedback" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
                 onClick={() => setView("feedback")}
               >
-                Feedback
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="feedback" className={styles.navGlyph} />
+                  <span>Feedback</span>
+                </span>
               </button>
               <button
                 type="button"
                 className={view === "profile" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
                 onClick={() => setView("profile")}
               >
-                Profile
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="profile" className={styles.navGlyph} />
+                  <span>Profile</span>
+                </span>
               </button>
               <button type="button" className={`${styles.navLink} ${styles.navLinkDanger}`} onClick={onLogout}>
-                Logout
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="logout" className={styles.navGlyph} />
+                  <span>Logout</span>
+                </span>
               </button>
             </div>
           </aside>
@@ -935,304 +1136,387 @@ export default function DashboardPage() {
             )}
 
             {view === "farms" && (
-              <section className={styles.panel}>
-                <div className={styles.panelHeader}>
-                  <h3>Farms workspace</h3>
-                  <div className={styles.inlineActions}>
-                    <button
-                      type="button"
-                      className={farmPanelView === "list" ? `${styles.secondaryBtn} ${styles.tabBtnActive}` : styles.secondaryBtn}
-                      onClick={() => setFarmPanelView("list")}
-                    >
-                      Farms list
+              <section className={`${styles.panel} ${styles.farmsPanel}`}>
+                <div className={styles.farmsHero}>
+                  <div className={styles.farmsHeroCopy}>
+                    <p className={styles.panelEyebrow}>Parcel workspace</p>
+                    <div className={styles.farmsHeroTitle}>
+                      <span className={styles.heroIconWrap}>
+                        <DashboardGlyph name="farm" className={styles.heroGlyph} />
+                      </span>
+                      <div>
+                        <h3>Farms management</h3>
+                        <p className={styles.farmsHeroText}>
+                          Review parcels, keep the active farm selected, and create new farms in a smaller two-step flow.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className={styles.summaryChips}>
+                      <div className={styles.summaryChip}>
+                        <span>Total farms</span>
+                        <strong>{farms.length}</strong>
+                      </div>
+                      <div className={styles.summaryChip}>
+                        <span>Selected farm</span>
+                        <strong>{selectedFarmDetail?.farm.farmer_name || "None"}</strong>
+                      </div>
+                      <div className={styles.summaryChip}>
+                        <span>Farm alerts</span>
+                        <strong>{summary.stressCount}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.heroActions}>
+                    <button type="button" className={styles.ghostActionBtn} onClick={() => void loadBase()} disabled={loadingBase}>
+                      <DashboardGlyph name="water" className={styles.buttonGlyph} />
+                      <span>{loadingBase ? "Refreshing..." : "Refresh workspace"}</span>
                     </button>
-                    <button
-                      type="button"
-                      className={farmPanelView === "add" ? `${styles.secondaryBtn} ${styles.tabBtnActive}` : styles.secondaryBtn}
-                      onClick={openAddFarm}
-                    >
-                      Add farm
+                    <button type="button" className={styles.primaryActionBtn} onClick={openAddFarm}>
+                      <DashboardGlyph name="plus" className={styles.buttonGlyph} />
+                      <span>Add farm</span>
                     </button>
                   </div>
                 </div>
 
-                {farmPanelView === "list" && (
-                  <div className={styles.farmsLayout}>
-                    <div className={styles.farmsList}>
-                      {farms.length === 0 && <p className={styles.muted}>No farms yet.</p>}
-                      {farms.map((farm) => (
-                        <button
-                          key={farm.id}
-                          type="button"
-                          className={farm.id === selectedFarmId ? `${styles.farmItem} ${styles.farmItemActive}` : styles.farmItem}
-                          onClick={() => setSelectedFarmId(farm.id)}
-                        >
-                          <div className={styles.farmItemHead}>
-                            <span
-                              className={farm.id === selectedFarmId ? `${styles.farmIcon} ${styles.farmIconActive}` : styles.farmIcon}
-                              aria-hidden="true"
-                            />
-                            <strong>{farm.farmer_name || "Unnamed farm"}</strong>
-                            {farm.id === selectedFarmId && <span className={styles.farmSelectedBadge}>Selected</span>}
-                          </div>
-                          <span>{farm.tree_count || 0} trees</span>
-                        </button>
-                      ))}
-                    </div>
+                {registerSuccess && <p className={styles.successInline}>{registerSuccess}</p>}
 
-                    <div className={styles.farmDetails}>
-                      {!selectedFarmDetail && <p className={styles.muted}>Select a farm to view details.</p>}
-                      {selectedFarmDetail && (
-                        <>
-                          <div className={styles.resultGrid}>
-                            <div>
-                              <span>Name</span>
-                              <strong>{selectedFarmDetail.farm.farmer_name || "-"}</strong>
-                            </div>
-                            <div>
-                              <span>Phone</span>
-                              <strong>{selectedFarmDetail.farm.phone || "-"}</strong>
-                            </div>
-                            <div>
-                              <span>Tree age</span>
-                              <strong>{selectedFarmDetail.farm.tree_age || "-"}</strong>
-                            </div>
-                            <div>
-                              <span>Soil type</span>
-                              <strong>{selectedFarmDetail.farm.soil_type || "-"}</strong>
-                            </div>
-                            <div>
-                              <span>Tree count</span>
-                              <strong>{selectedFarmDetail.farm.tree_count || 0}</strong>
-                            </div>
-                            <div>
-                              <span>Spacing m2</span>
-                              <strong>{selectedFarmDetail.farm.spacing_m2 || 0}</strong>
-                            </div>
-                          </div>
+                <div className={styles.farmsLayout}>
+                  <div className={styles.farmsList}>
+                    {farms.length === 0 && <p className={styles.muted}>No farms yet. Use Add farm to create your first parcel.</p>}
+                    {farms.map((farm) => (
+                      <button
+                        key={farm.id}
+                        type="button"
+                        className={farm.id === selectedFarmId ? `${styles.farmItem} ${styles.farmItemActive}` : styles.farmItem}
+                        onClick={() => setSelectedFarmId(farm.id)}
+                      >
+                        <div className={styles.farmItemHead}>
+                          <span
+                            className={farm.id === selectedFarmId ? `${styles.farmIcon} ${styles.farmIconActive}` : styles.farmIcon}
+                            aria-hidden="true"
+                          />
+                          <strong>{farm.farmer_name || "Unnamed farm"}</strong>
+                          {farm.id === selectedFarmId && <span className={styles.farmSelectedBadge}>Selected</span>}
+                        </div>
+                        <span>{farm.tree_count || 0} trees</span>
+                      </button>
+                    ))}
+                  </div>
 
-                          <div className={styles.lastAlertBlock}>
-                            <h4>Last recommendation</h4>
-                            {!selectedFarmDetail.last_alert && <p className={styles.muted}>No alerts yet.</p>}
-                            {selectedFarmDetail.last_alert && (
-                              <div className={styles.resultGrid}>
-                                <div>
-                                  <span>Litres/tree</span>
-                                  <strong>{fmt(selectedFarmDetail.last_alert.litres_per_tree, 2)}</strong>
-                                </div>
-                                <div>
-                                  <span>Total m3</span>
-                                  <strong>{fmt((selectedFarmDetail.last_alert.total_litres || 0) / 1000, 2)}</strong>
-                                </div>
-                                <div>
-                                  <span>Stress mode</span>
-                                  <strong>{selectedFarmDetail.last_alert.stress_mode ? "YES" : "NO"}</strong>
-                                </div>
-                                <div>
-                                  <span>Sent at</span>
-                                  <strong>{new Date(selectedFarmDetail.last_alert.sent_at).toLocaleString()}</strong>
-                                </div>
+                  <div className={styles.farmDetails}>
+                    {!selectedFarmDetail && <p className={styles.muted}>Select a farm to view details.</p>}
+                    {selectedFarmDetail && (
+                      <>
+                        <div className={styles.resultGrid}>
+                          <div>
+                            <span>Name</span>
+                            <strong>{selectedFarmDetail.farm.farmer_name || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>Phone</span>
+                            <strong>{selectedFarmDetail.farm.phone || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>Tree age</span>
+                            <strong>{selectedFarmDetail.farm.tree_age || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>Soil type</span>
+                            <strong>{selectedFarmDetail.farm.soil_type || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>Tree count</span>
+                            <strong>{selectedFarmDetail.farm.tree_count || 0}</strong>
+                          </div>
+                          <div>
+                            <span>Spacing m2</span>
+                            <strong>{selectedFarmDetail.farm.spacing_m2 || 0}</strong>
+                          </div>
+                        </div>
+
+                        <div className={styles.lastAlertBlock}>
+                          <h4>Last recommendation</h4>
+                          {!selectedFarmDetail.last_alert && <p className={styles.muted}>No alerts yet.</p>}
+                          {selectedFarmDetail.last_alert && (
+                            <div className={styles.resultGrid}>
+                              <div>
+                                <span>Litres/tree</span>
+                                <strong>{fmt(selectedFarmDetail.last_alert.litres_per_tree, 2)}</strong>
                               </div>
+                              <div>
+                                <span>Total m3</span>
+                                <strong>{fmt((selectedFarmDetail.last_alert.total_litres || 0) / 1000, 2)}</strong>
+                              </div>
+                              <div>
+                                <span>Stress mode</span>
+                                <strong>{selectedFarmDetail.last_alert.stress_mode ? "YES" : "NO"}</strong>
+                              </div>
+                              <div>
+                                <span>Sent at</span>
+                                <strong>{new Date(selectedFarmDetail.last_alert.sent_at).toLocaleString()}</strong>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {isAdmin && (
+                          <div className={styles.lastAlertBlock}>
+                            <h4>Admin Telegram update</h4>
+                            <form className={styles.feedbackComposer} onSubmit={onSendAdminTelegramUpdate}>
+                              <label className={`${styles.fieldBlock} ${styles.fieldWide}`}>
+                                Message to this farmer
+                                <textarea
+                                  rows={3}
+                                  value={telegramMessage}
+                                  onChange={(event) => setTelegramMessage(event.target.value)}
+                                  placeholder="Write a specific update for this farmer..."
+                                />
+                              </label>
+
+                              <div className={styles.inlineActions}>
+                                <button
+                                  type="submit"
+                                  className={styles.primaryBtn}
+                                  disabled={telegramSending || !selectedFarmDetail.farm.telegram_linked}
+                                >
+                                  {telegramSending ? "Sending..." : "Send Telegram update"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.secondaryBtn}
+                                  onClick={() => void onOpenSelectedFarmTelegram()}
+                                  disabled={!selectedFarmDetail.farm.telegram_linked}
+                                >
+                                  Open farmer chat
+                                </button>
+                              </div>
+                            </form>
+
+                            {!selectedFarmDetail.farm.telegram_linked && (
+                              <p className={styles.muted}>This farm is not linked to Telegram yet.</p>
+                            )}
+                            {telegramError && <p className={styles.errorInline}>{telegramError}</p>}
+                            {telegramSuccess && <p className={styles.successInline}>{telegramSuccess}</p>}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {isAddFarmOpen && (
+                  <div className={styles.wizardBackdrop}>
+                    <div
+                      className={styles.wizardPanel}
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="add-farm-title"
+                    >
+                      <form
+                        className={
+                          addFarmStep === 2 && polygonMode === "map"
+                            ? `${styles.wizardMain} ${styles.wizardMainMapMode}`
+                            : styles.wizardMain
+                        }
+                        onSubmit={onCreateFarm}
+                      >
+                        <div className={addFarmStep === 2 ? `${styles.wizardHeader} ${styles.wizardHeaderCompact}` : styles.wizardHeader}>
+                          <div>
+                            <p className={styles.wizardKicker}>Farm wizard</p>
+                            <h3 id="add-farm-title">{addFarmStep === 2 ? "Step 2: Polygon" : "Create a new farm profile"}</h3>
+                            {addFarmStep === 1 && (
+                              <p className={styles.wizardSub}>
+                                Keep the flow compact: validate your main farm information first, then move to the parcel step.
+                              </p>
                             )}
                           </div>
 
-                          {isAdmin && (
-                            <div className={styles.lastAlertBlock}>
-                              <h4>Admin Telegram update</h4>
-                              <form className={styles.feedbackComposer} onSubmit={onSendAdminTelegramUpdate}>
+                          <button type="button" className={styles.wizardCloseBtn} onClick={closeAddFarm} aria-label="Close add farm wizard">
+                            <DashboardGlyph name="close" className={styles.buttonGlyph} />
+                          </button>
+                        </div>
+
+                        {addFarmStep === 1 && (
+                          <div className={styles.stepTabs}>
+                            <button
+                              type="button"
+                              className={addFarmStep === 1 ? `${styles.stepTab} ${styles.stepTabActive}` : styles.stepTab}
+                              onClick={() => setAddFarmStep(1)}
+                            >
+                              <DashboardGlyph name="user" className={styles.buttonGlyph} />
+                              <span>Step 1: General info</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.stepTab}
+                              onClick={onContinueToStep2}
+                              disabled={!canOpenStep2}
+                            >
+                              <DashboardGlyph name="map" className={styles.buttonGlyph} />
+                              <span>Step 2: Polygon</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {addFarmStep === 1 && (
+                          <>
+                            <div className={stepOneValidationError ? styles.stepAlertWarn : styles.stepAlertReady}>
+                              <span className={styles.stepAlertLabel}>Step 1 status</span>
+                              <strong>{stepOneValidationError || "All required values are ready. You can move to the parcel step."}</strong>
+                            </div>
+
+                            <div className={styles.formGrid}>
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="user" className={styles.fieldGlyph} />Farmer name</span>
+                                <input value={farmerName} onChange={(event) => setFarmerName(event.target.value)} required minLength={2} />
+                              </label>
+
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="phone" className={styles.fieldGlyph} />Phone</span>
+                                <input value={phone} onChange={(event) => setPhone(event.target.value)} required minLength={6} />
+                              </label>
+
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="farm" className={styles.fieldGlyph} />Crop type</span>
+                                <input value={cropType} onChange={(event) => setCropType(event.target.value)} />
+                              </label>
+
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="trees" className={styles.fieldGlyph} />Tree age</span>
+                                <select value={treeAge} onChange={(event) => setTreeAge(event.target.value as TreeAge)}>
+                                  <option value="ADULT">ADULT</option>
+                                  <option value="YOUNG">YOUNG</option>
+                                </select>
+                              </label>
+
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="soil" className={styles.fieldGlyph} />Soil type</span>
+                                <select value={soilType} onChange={(event) => setSoilType(event.target.value as SoilType)}>
+                                  <option value="MEDIUM">MEDIUM</option>
+                                  <option value="SANDY">SANDY</option>
+                                  <option value="CLAY">CLAY</option>
+                                </select>
+                              </label>
+
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="trees" className={styles.fieldGlyph} />Tree count</span>
+                                <input type="number" min={1} step={1} value={treeCount} onChange={(event) => setTreeCount(event.target.value)} required />
+                              </label>
+
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="map" className={styles.fieldGlyph} />Spacing m2</span>
+                                <input type="number" min={0.1} step={0.1} value={spacingM2} onChange={(event) => setSpacingM2(event.target.value)} required />
+                              </label>
+
+                              <label className={styles.fieldBlock}>
+                                <span className={styles.fieldLabel}><DashboardGlyph name="water" className={styles.fieldGlyph} />Irrigation efficiency</span>
+                                <input type="number" min={0.5} max={1} step={0.01} value={efficiency} onChange={(event) => setEfficiency(event.target.value)} required />
+                              </label>
+                            </div>
+
+                            <div className={styles.wizardFooter}>
+                              <button type="button" className={styles.secondaryBtn} onClick={closeAddFarm}>
+                                Cancel
+                              </button>
+                              <button type="button" className={styles.primaryBtn} onClick={onContinueToStep2}>
+                                <DashboardGlyph name="arrow" className={styles.buttonGlyph} />
+                                <span>Next: polygon</span>
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {addFarmStep === 2 && (
+                          <div className={polygonMode === "map" ? `${styles.polygonStep} ${styles.polygonStepMapMode}` : styles.polygonStep}>
+                            <div className={styles.stepTwoTopBar}>
+                              <div className={styles.modeSwitch}>
+                                <button
+                                  type="button"
+                                  className={polygonMode === "map" ? `${styles.modeButton} ${styles.modeButtonActive}` : styles.modeButton}
+                                  onClick={() => setPolygonMode("map")}
+                                >
+                                  <DashboardGlyph name="map" className={styles.buttonGlyph} />
+                                  <span>Draw</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={polygonMode === "text" ? `${styles.modeButton} ${styles.modeButtonActive}` : styles.modeButton}
+                                  onClick={() => setPolygonMode("text")}
+                                >
+                                  <DashboardGlyph name="text" className={styles.buttonGlyph} />
+                                  <span>Paste text</span>
+                                </button>
+                              </div>
+
+                              <div className={polygonPoints.length >= 3 ? styles.stepTwoStatusReady : styles.stepTwoStatusPending}>
+                                <DashboardGlyph name="farm" className={styles.fieldGlyph} />
+                                <strong>
+                                  {polygonPoints.length >= 3
+                                    ? `${polygonPoints.length} points ready`
+                                    : "Need at least 3 points"}
+                                </strong>
+                              </div>
+                            </div>
+
+                            {polygonMode === "text" && (
+                              <div className={styles.polygonTextCard}>
                                 <label className={`${styles.fieldBlock} ${styles.fieldWide}`}>
-                                  Message to this farmer
+                                  <span className={styles.fieldLabel}><DashboardGlyph name="text" className={styles.fieldGlyph} />Polygon coordinates (JSON)</span>
                                   <textarea
-                                    rows={3}
-                                    value={telegramMessage}
-                                    onChange={(event) => setTelegramMessage(event.target.value)}
-                                    placeholder="Write a specific update for this farmer..."
+                                    rows={7}
+                                    value={polygonText}
+                                    onChange={(event) => setPolygonText(event.target.value)}
+                                    spellCheck={false}
+                                    placeholder="[[longitude, latitude], ...]"
                                   />
                                 </label>
 
                                 <div className={styles.inlineActions}>
-                                  <button
-                                    type="submit"
-                                    className={styles.primaryBtn}
-                                    disabled={telegramSending || !selectedFarmDetail.farm.telegram_linked}
-                                  >
-                                    {telegramSending ? "Sending..." : "Send Telegram update"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={styles.secondaryBtn}
-                                    onClick={() => void onOpenSelectedFarmTelegram()}
-                                    disabled={!selectedFarmDetail.farm.telegram_linked}
-                                  >
-                                    Open farmer chat
+                                  <button type="button" className={styles.secondaryBtn} onClick={applyPolygonText}>
+                                    Apply text polygon
                                   </button>
                                 </div>
-                              </form>
+                              </div>
+                            )}
 
-                              {!selectedFarmDetail.farm.telegram_linked && (
-                                <p className={styles.muted}>This farm is not linked to Telegram yet.</p>
-                              )}
-                              {telegramError && <p className={styles.errorInline}>{telegramError}</p>}
-                              {telegramSuccess && <p className={styles.successInline}>{telegramSuccess}</p>}
+                            <div className={styles.mapToolsRow}>
+                              <button type="button" className={styles.secondaryBtn} onClick={() => setPolygon(SAMPLE_POLYGON)}>
+                                Use sample parcel
+                              </button>
+                              <button type="button" className={styles.secondaryBtn} onClick={clearPoints} disabled={polygonPoints.length === 0}>
+                                Clear parcel
+                              </button>
                             </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
 
-                {farmPanelView === "add" && (
-                  <form className={styles.addFarmFlow} onSubmit={onCreateFarm}>
-                    <div className={styles.stepTabs}>
-                      <button
-                        type="button"
-                        className={addFarmStep === 1 ? `${styles.stepTab} ${styles.stepTabActive}` : styles.stepTab}
-                        onClick={() => setAddFarmStep(1)}
-                      >
-                        Step 1: General info
-                      </button>
-                      <button
-                        type="button"
-                        className={addFarmStep === 2 ? `${styles.stepTab} ${styles.stepTabActive}` : styles.stepTab}
-                        onClick={onContinueToStep2}
-                        disabled={!canOpenStep2}
-                      >
-                        Step 2: Polygon
-                      </button>
-                    </div>
+                            <div className={polygonMode === "map" ? `${styles.mapBox} ${styles.mapBoxDrawMode}` : styles.mapBox}>
+                              <ParcelDrawMap
+                                points={polygonPoints as [number, number][]}
+                                onChange={setPolygon}
+                                className={polygonMode === "map" ? `${styles.mapLeaflet} ${styles.mapLeafletDrawMode}` : styles.mapLeaflet}
+                              />
+                            </div>
 
-                    {addFarmStep === 1 && (
-                      <div className={styles.formGrid}>
-                        <label className={styles.fieldBlock}>
-                          Farmer name
-                          <input value={farmerName} onChange={(event) => setFarmerName(event.target.value)} required minLength={2} />
-                        </label>
+                            {polygonMode === "map" && (
+                              <p className={styles.mapHint}>Use the left toolbar to draw, edit corners, or delete and redraw.</p>
+                            )}
 
-                        <label className={styles.fieldBlock}>
-                          Phone
-                          <input value={phone} onChange={(event) => setPhone(event.target.value)} required minLength={6} />
-                        </label>
-
-                        <label className={styles.fieldBlock}>
-                          Crop type
-                          <input value={cropType} onChange={(event) => setCropType(event.target.value)} />
-                        </label>
-
-                        <label className={styles.fieldBlock}>
-                          Tree age
-                          <select value={treeAge} onChange={(event) => setTreeAge(event.target.value as TreeAge)}>
-                            <option value="ADULT">ADULT</option>
-                            <option value="YOUNG">YOUNG</option>
-                          </select>
-                        </label>
-
-                        <label className={styles.fieldBlock}>
-                          Soil type
-                          <select value={soilType} onChange={(event) => setSoilType(event.target.value as SoilType)}>
-                            <option value="MEDIUM">MEDIUM</option>
-                            <option value="SANDY">SANDY</option>
-                            <option value="CLAY">CLAY</option>
-                          </select>
-                        </label>
-
-                        <label className={styles.fieldBlock}>
-                          Tree count
-                          <input type="number" min={1} step={1} value={treeCount} onChange={(event) => setTreeCount(event.target.value)} required />
-                        </label>
-
-                        <label className={styles.fieldBlock}>
-                          Spacing m2
-                          <input type="number" min={0.1} step={0.1} value={spacingM2} onChange={(event) => setSpacingM2(event.target.value)} required />
-                        </label>
-
-                        <label className={styles.fieldBlock}>
-                          Irrigation efficiency
-                          <input type="number" min={0.5} max={1} step={0.01} value={efficiency} onChange={(event) => setEfficiency(event.target.value)} required />
-                        </label>
-
-                        <div className={styles.formActions}>
-                          <button type="button" className={styles.primaryBtn} onClick={onContinueToStep2} disabled={!canOpenStep2}>
-                            Continue to Step 2
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {addFarmStep === 2 && (
-                      <div className={styles.polygonStep}>
-                        <div className={styles.modeSwitch}>
-                          <button
-                            type="button"
-                            className={polygonMode === "map" ? `${styles.modeButton} ${styles.modeButtonActive}` : styles.modeButton}
-                            onClick={() => setPolygonMode("map")}
-                          >
-                            Draw on map
-                          </button>
-                          <button
-                            type="button"
-                            className={polygonMode === "text" ? `${styles.modeButton} ${styles.modeButtonActive}` : styles.modeButton}
-                            onClick={() => setPolygonMode("text")}
-                          >
-                            Paste polygon text
-                          </button>
-                        </div>
-
-                        {polygonMode === "text" && (
-                          <label className={styles.fieldBlock}>
-                            Polygon coordinates (JSON)
-                            <textarea
-                              rows={7}
-                              value={polygonText}
-                              onChange={(event) => setPolygonText(event.target.value)}
-                              spellCheck={false}
-                              placeholder="[[longitude, latitude], ...]"
-                            />
-                          </label>
+                            <div className={styles.wizardFooter}>
+                              <button type="button" className={styles.secondaryBtn} onClick={() => setAddFarmStep(1)}>
+                                Back to Step 1
+                              </button>
+                              <button type="submit" className={styles.primaryBtn} disabled={registeringFarm}>
+                                {registeringFarm ? "Creating farm..." : "Create farm"}
+                              </button>
+                            </div>
+                          </div>
                         )}
 
-                        <div className={styles.mapTools}>
-                          <button type="button" className={styles.secondaryBtn} onClick={applyPolygonText}>
-                            Apply text polygon
-                          </button>
-                          <button type="button" className={styles.secondaryBtn} onClick={() => setPolygon(SAMPLE_POLYGON)}>
-                            Use sample polygon
-                          </button>
-                          <button type="button" className={styles.secondaryBtn} onClick={undoPoint} disabled={polygonPoints.length === 0}>
-                            Undo last point
-                          </button>
-                          <button type="button" className={styles.secondaryBtn} onClick={clearPoints} disabled={polygonPoints.length === 0}>
-                            Clear drawing
-                          </button>
-                        </div>
-
-                        <div className={styles.mapBox}>
-                          <ParcelDrawMap
-                            points={polygonPoints as [number, number][]}
-                            onAddPoint={addPoint}
-                            onMovePoint={movePoint}
-                            className={styles.mapLeaflet}
-                          />
-                        </div>
-
-                        <p className={styles.muted}>
-                          Map is focused on north Morocco. Click to add points, drag points to move them, and use clear/undo tools.
-                        </p>
-
-                        <div className={styles.inlineActions}>
-                          <button type="button" className={styles.secondaryBtn} onClick={() => setAddFarmStep(1)}>
-                            Back to Step 1
-                          </button>
-                          <button type="submit" className={styles.primaryBtn} disabled={registeringFarm}>
-                            {registeringFarm ? "Creating farm..." : "Create farm"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {registerError && <p className={styles.errorInline}>{registerError}</p>}
-                    {registerSuccess && <p className={styles.successInline}>{registerSuccess}</p>}
-                  </form>
+                        {registerError && <p className={styles.errorInline}>{registerError}</p>}
+                      </form>
+                    </div>
+                  </div>
                 )}
               </section>
             )}
@@ -1489,5 +1773,23 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className={styles.page}>
+          <div className={styles.shell}>
+            <section className={styles.panel}>
+              <p className={styles.muted}>Loading dashboard...</p>
+            </section>
+          </div>
+        </div>
+      }
+    >
+      <DashboardPageContent />
+    </Suspense>
   );
 }

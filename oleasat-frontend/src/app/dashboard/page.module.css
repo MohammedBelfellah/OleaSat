@@ -5,8 +5,13 @@
     radial-gradient(circle at 12% 8%, rgba(116, 149, 75, 0.2), transparent 40%),
     radial-gradient(
       circle at 92% 88%,
-      rgba(248, 188, 118, 0.2),
+      rgba(248, 188, 118, 0.28),
       transparent 36%
+    ),
+    radial-gradient(
+      circle at 60% 14%,
+      rgba(217, 114, 31, 0.12),
+      transparent 22%
     ),
     linear-gradient(180deg, #f5f4ef 0%, #ecebe3 100%);
 }
@@ -82,9 +87,25 @@
   cursor: pointer;
 }
 
+.navButtonLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.navGlyph {
+  width: 16px;
+  height: 16px;
+}
+
 .navLinkActive {
-  border-color: #7a9c54;
-  background: #eaf4dd;
+  border-color: rgba(217, 114, 31, 0.36);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 243, 229, 0.96) 0%,
+    rgba(255, 232, 211, 0.9) 100%
+  );
+  color: #6f3910;
 }
 
 .navLinkDanger {
@@ -133,7 +154,12 @@
   border-radius: 16px;
   padding: 16px;
   border: 1px solid #d8e1cb;
-  background: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 250, 245, 0.92) 0%,
+    rgba(255, 255, 255, 0.9) 52%,
+    rgba(247, 251, 241, 0.92) 100%
+  );
 }
 
 .topbarCompact {
@@ -221,7 +247,11 @@
 .panel {
   border-radius: 16px;
   border: 1px solid #d8e2cb;
-  background: rgba(255, 255, 255, 0.92);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(253, 250, 246, 0.92) 100%
+  );
   box-shadow: 0 10px 22px rgba(37, 53, 25, 0.07);
   padding: 14px;
   display: grid;
@@ -278,18 +308,23 @@
 
 .primaryBtn,
 .secondaryBtn {
-  border: 1px solid #cad8b6;
+  border: 1px solid rgba(217, 114, 31, 0.22);
   border-radius: 10px;
-  background: #f4f9ed;
-  color: #2e4322;
+  background: #fff7ef;
+  color: #6a3a13;
   padding: 8px 12px;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .primaryBtn {
-  background: linear-gradient(180deg, #6c9149 0%, #5d7d3e 100%);
+  background: linear-gradient(180deg, #e28633 0%, #c66719 100%);
   color: #fff;
   border: 0;
+  box-shadow: 0 14px 28px rgba(198, 103, 25, 0.18);
 }
 
 .errorInline,
@@ -757,15 +792,16 @@
 }
 
 .mapBox {
-  border: 1px solid #d7e2c9;
-  border-radius: 12px;
+  border: 1px solid rgba(217, 114, 31, 0.22);
+  border-radius: 18px;
   overflow: hidden;
-  background: #edf4e4;
+  background: linear-gradient(180deg, #fbf4ed 0%, #f0f4e7 100%);
 }
 
 .mapLeaflet {
   width: 100%;
-  min-height: 360px;
+  height: clamp(260px, 46vh, 500px);
+  min-height: clamp(260px, 46vh, 500px);
 }
 
 .inlineActions {
@@ -786,10 +822,10 @@
 }
 
 .farmsList {
-  border: 1px solid #d7e2c9;
-  border-radius: 12px;
-  background: #f8fbf3;
-  padding: 8px;
+  border: 1px solid rgba(217, 114, 31, 0.16);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffaf5 0%, #f8fbf3 100%);
+  padding: 10px;
   display: grid;
   gap: 8px;
   max-height: 540px;
@@ -797,9 +833,9 @@
 }
 
 .farmItem {
-  border: 1px solid #d6e1c8;
-  border-radius: 10px;
-  background: #ffffff;
+  border: 1px solid #ecd8c0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
   padding: 9px;
   display: grid;
   gap: 2px;
@@ -849,14 +885,22 @@
 }
 
 .farmItemActive {
-  border-color: #7a9c54;
-  background: #edf6df;
+  border-color: rgba(217, 114, 31, 0.38);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 244, 230, 0.96) 0%,
+    rgba(248, 250, 241, 0.96) 100%
+  );
 }
 
 .farmDetails {
-  border: 1px solid #d7e2c9;
-  border-radius: 12px;
-  background: #f8fbf3;
+  border: 1px solid rgba(217, 114, 31, 0.16);
+  border-radius: 18px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(249, 251, 244, 0.96) 100%
+  );
   padding: 10px;
   display: grid;
   gap: 10px;
@@ -883,13 +927,17 @@
 }
 
 .stepTab {
-  border: 1px solid #d6e1c8;
-  border-radius: 10px;
-  background: #f8fbf3;
-  color: #2e4322;
+  border: 1px solid rgba(217, 114, 31, 0.16);
+  border-radius: 14px;
+  background: #fffaf4;
+  color: #5f3411;
   font-weight: 700;
   text-align: left;
-  padding: 9px 10px;
+  padding: 11px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .stepTab:disabled {
@@ -898,8 +946,12 @@
 }
 
 .stepTabActive {
-  border-color: #7a9c54;
-  background: #eaf4dd;
+  border-color: rgba(217, 114, 31, 0.34);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 243, 228, 1) 0%,
+    rgba(255, 233, 212, 0.94) 100%
+  );
 }
 
 .polygonStep {
@@ -914,23 +966,498 @@
 }
 
 .modeButton {
-  border: 1px solid #d0ddbf;
-  border-radius: 10px;
-  background: #f8fbf3;
-  color: #2c4120;
+  border: 1px solid rgba(217, 114, 31, 0.18);
+  border-radius: 12px;
+  background: #fff8f1;
+  color: #5f3411;
   font-weight: 700;
   padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .modeButtonActive {
-  border-color: #7a9c54;
-  background: #eaf4dd;
+  border-color: rgba(217, 114, 31, 0.34);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 243, 228, 1) 0%,
+    rgba(255, 233, 212, 0.94) 100%
+  );
 }
 
 .mapTools {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.glyph {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.buttonGlyph {
+  width: 17px;
+  height: 17px;
+}
+
+.fieldGlyph {
+  width: 15px;
+  height: 15px;
+}
+
+.panelEyebrow {
+  color: #b6631d;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.farmsPanel {
+  position: relative;
+  overflow: hidden;
+}
+
+.farmsHero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid rgba(217, 114, 31, 0.18);
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at right top,
+      rgba(217, 114, 31, 0.14),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 248, 240, 0.98) 0%,
+      rgba(255, 255, 255, 0.96) 58%,
+      rgba(246, 250, 240, 0.98) 100%
+    );
+}
+
+.farmsHeroCopy {
+  display: grid;
+  gap: 12px;
+}
+
+.farmsHeroTitle {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.heroIconWrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f5a153 0%, #d9721f 100%);
+  color: #fffaf6;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 16px 30px rgba(217, 114, 31, 0.18);
+}
+
+.heroGlyph {
+  width: 24px;
+  height: 24px;
+}
+
+.farmsHeroText {
+  margin-top: 5px;
+  color: #725f50;
+  max-width: 58ch;
+}
+
+.summaryChips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.summaryChip {
+  min-width: 140px;
+  border-radius: 16px;
+  border: 1px solid rgba(217, 114, 31, 0.14);
+  background: rgba(255, 255, 255, 0.78);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.summaryChip span {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #906a49;
+  font-weight: 800;
+}
+
+.summaryChip strong {
+  color: #2d2a21;
+}
+
+.heroActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.primaryActionBtn,
+.ghostActionBtn {
+  border-radius: 14px;
+  font-weight: 800;
+  padding: 12px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primaryActionBtn {
+  border: 0;
+  background: linear-gradient(180deg, #e28633 0%, #c66719 100%);
+  color: #fff9f4;
+  box-shadow: 0 18px 34px rgba(198, 103, 25, 0.24);
+}
+
+.ghostActionBtn {
+  border: 1px solid rgba(217, 114, 31, 0.2);
+  background: rgba(255, 249, 242, 0.92);
+  color: #6a3a13;
+}
+
+.wizardBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  padding: 16px;
+  background: rgba(45, 31, 19, 0.28);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+}
+
+.wizardPanel {
+  width: min(1100px, 100%);
+  height: min(92vh, 860px);
+  max-height: calc(100vh - 24px);
+  border-radius: 28px;
+  border: 1px solid rgba(217, 114, 31, 0.18);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 248, 0.98) 0%,
+    rgba(255, 255, 255, 0.98) 100%
+  );
+  box-shadow: 0 30px 70px rgba(35, 27, 18, 0.2);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.wizardPanelDrawFocus {
+  grid-template-columns: 1fr;
+}
+
+.wizardPanelDrawFocus .wizardAside {
+  display: none;
+}
+
+.wizardAside {
+  padding: 24px;
+  background:
+    radial-gradient(
+      circle at right top,
+      rgba(255, 255, 255, 0.2),
+      transparent 36%
+    ),
+    linear-gradient(180deg, #db7a28 0%, #c56719 100%);
+  color: #fff9f2;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.wizardBadge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.wizardAside h4 {
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  line-height: 1.05;
+}
+
+.wizardAsideCopy {
+  color: rgba(255, 248, 239, 0.82);
+  line-height: 1.5;
+}
+
+.wizardProgress {
+  display: grid;
+  gap: 10px;
+}
+
+.wizardProgressItem {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wizardProgressItem span {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.wizardProgressItem p {
+  margin-top: 4px;
+  color: rgba(255, 248, 239, 0.78);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.wizardProgressItemActive {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.wizardFacts {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.wizardFacts p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(255, 250, 244, 0.9);
+  font-size: 0.84rem;
+}
+
+.wizardFacts strong {
+  text-align: right;
+}
+
+.wizardMain {
+  padding: 24px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.wizardMainMapMode {
+  height: 100%;
+  min-height: 0;
+  align-content: stretch;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.wizardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.wizardHeaderCompact {
+  margin-bottom: -4px;
+}
+
+.wizardHeaderCompact .wizardKicker {
+  font-size: 0.68rem;
+}
+
+.wizardHeaderCompact h3 {
+  font-size: clamp(1.45rem, 2.8vw, 1.8rem);
+}
+
+.wizardKicker {
+  color: #b6631d;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.wizardSub {
+  margin-top: 6px;
+  color: #6a645c;
+  max-width: 58ch;
+}
+
+.wizardCloseBtn {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(217, 114, 31, 0.18);
+  background: #fff8f2;
+  color: #6a3a13;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepAlertWarn,
+.stepAlertReady {
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.stepAlertWarn {
+  border: 1px solid rgba(217, 114, 31, 0.22);
+  background: rgba(255, 242, 228, 0.9);
+  color: #8a4a14;
+}
+
+.stepAlertReady {
+  border: 1px solid rgba(114, 160, 76, 0.22);
+  background: rgba(242, 248, 235, 0.92);
+  color: #355127;
+}
+
+.stepAlertLabel {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.fieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.polygonTextCard {
+  border-radius: 18px;
+  border: 1px solid rgba(217, 114, 31, 0.16);
+  background: rgba(255, 249, 242, 0.92);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.polygonStepMapMode {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+}
+
+.mapToolsRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mapBoxDrawMode {
+  height: 100%;
+  min-height: 260px;
+}
+
+.stepTwoTopBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stepTwoStatusReady,
+.stepTwoStatusPending {
+  border-radius: 999px;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.stepTwoStatusReady {
+  border: 1px solid rgba(114, 160, 76, 0.22);
+  background: rgba(242, 248, 235, 0.92);
+  color: #355127;
+}
+
+.stepTwoStatusPending {
+  border: 1px solid rgba(217, 114, 31, 0.22);
+  background: rgba(255, 242, 228, 0.9);
+  color: #8a4a14;
+}
+
+.mapStatusReady,
+.mapStatusPending {
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.mapStatusReady {
+  border: 1px solid rgba(114, 160, 76, 0.22);
+  background: rgba(242, 248, 235, 0.92);
+  color: #355127;
+}
+
+.mapStatusPending {
+  border: 1px solid rgba(217, 114, 31, 0.22);
+  background: rgba(255, 242, 228, 0.9);
+  color: #8a4a14;
+}
+
+.mapHint {
+  color: #6f675e;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.mapLeafletDrawMode {
+  height: 100%;
+  min-height: 260px;
+}
+
+.wizardFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 .muted {
@@ -977,6 +1504,27 @@
   .farmsLayout {
     grid-template-columns: 1fr;
   }
+
+  .farmsHero {
+    flex-direction: column;
+  }
+
+  .heroActions {
+    justify-content: flex-start;
+  }
+
+  .wizardPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .wizardAside,
+  .wizardPanelDrawFocus .wizardAside {
+    display: none;
+  }
+
+  .stepTwoTopBar {
+    align-items: stretch;
+  }
 }
 
 @media (max-width: 640px) {
@@ -999,6 +1547,74 @@
   }
 
   .telegramQrFrame {
+    min-height: 220px;
+  }
+
+  .summaryChips,
+  .heroActions,
+  .wizardFooter,
+  .mapToolsRow,
+  .modeSwitch,
+  .stepTwoTopBar {
+    flex-direction: column;
+  }
+
+  .primaryActionBtn,
+  .ghostActionBtn,
+  .secondaryBtn,
+  .primaryBtn,
+  .modeButton,
+  .stepTab {
+    width: 100%;
+  }
+
+  .stepTabs {
+    grid-template-columns: 1fr;
+  }
+
+  .wizardBackdrop {
+    padding: 8px;
+  }
+
+  .wizardMain,
+  .wizardAside {
+    padding: 14px;
+  }
+
+  .wizardHeader {
+    flex-direction: column;
+  }
+
+  .wizardCloseBtn {
+    align-self: flex-end;
+  }
+}
+
+@media (max-height: 820px) {
+  .wizardBackdrop {
+    padding: 8px;
+  }
+
+  .wizardPanel {
+    height: calc(100vh - 16px);
+    max-height: calc(100vh - 16px);
+  }
+
+  .wizardMain {
+    padding: 14px;
+  }
+
+  .wizardProgressItem {
+    padding: 10px;
+  }
+
+  .mapLeaflet {
+    height: clamp(220px, 40vh, 360px);
+    min-height: clamp(220px, 40vh, 360px);
+  }
+
+  .mapLeafletDrawMode {
+    height: 100%;
     min-height: 220px;
   }
 }
