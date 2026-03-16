@@ -57,27 +57,28 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.grid}>
-        <section className={styles.story}>
-          <p className={styles.storyKicker}>OleaSat Onboarding</p>
-          <h1>Create your account before adding farms and parcels.</h1>
-          <p>
-            This page connects to <code>/api/v1/auth/register</code>. After success, the JWT is stored locally so
-            protected endpoints can be called immediately.
-          </p>
-          <ul className={styles.storyList}>
-            <li>Register once and access all modules</li>
-            <li>Role-aware token returned by backend</li>
-            <li>Ready for step-by-step farm onboarding flow</li>
-          </ul>
+    <div className={styles.loginPage}>
+      <div className={styles.loginShell}>
+        <section className={styles.loginVisual}>
+          <div className={styles.loginOverlay}>
+            <p className={styles.loginBrand}>OleaSat</p>
+            <h1>Precision monitoring for resilient orchards</h1>
+            <p>Use satellite intelligence to strengthen sustainable agriculture in North Africa.</p>
+          </div>
         </section>
 
-        <main className={styles.card}>
-          <header className={styles.header}>
-            <h2>Inscription</h2>
-            <p>Create a user account for OleaSat web app access.</p>
+        <main className={styles.loginPanel}>
+          <header className={styles.loginHeader}>
+            <h2>Create your OleaSat account</h2>
+            <p>Register to start managing farms and irrigation analysis.</p>
           </header>
+
+          <nav className={styles.authSwitch} aria-label="Auth switch">
+            <Link className={styles.authSwitchLink} href="/auth/login">
+              Sign In
+            </Link>
+            <span className={styles.authSwitchActive}>Register</span>
+          </nav>
 
           <form className={styles.form} onSubmit={onSubmit}>
             <div className={styles.field}>
@@ -88,7 +89,7 @@ export default function RegisterPage() {
                 autoComplete="name"
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
-                placeholder="Ahmed Al-Farsi"
+                placeholder="Ahmed Al-Mansouri"
               />
             </div>
 
@@ -100,6 +101,7 @@ export default function RegisterPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                placeholder="ahmed@example.com"
                 required
               />
             </div>
@@ -112,6 +114,7 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
                 minLength={6}
                 required
               />
@@ -121,20 +124,15 @@ export default function RegisterPage() {
             {successMessage && <p className={styles.success}>{successMessage}</p>}
 
             <div className={styles.actions}>
-              <button className={styles.primaryButton} disabled={pending} type="submit">
+              <button className={styles.loginPrimaryButton} disabled={pending} type="submit">
                 {pending ? "Creating account..." : "Create account"}
               </button>
             </div>
           </form>
 
-          <div className={styles.linksRow}>
-            <Link className={styles.linkPill} href="/auth/login">
-              Already registered? Login
-            </Link>
-            <Link className={styles.linkPill} href="/">
-              Back to home
-            </Link>
-          </div>
+          <p className={styles.loginFooterText}>
+            Already have an account? <Link href="/auth/login">Sign in</Link>
+          </p>
         </main>
       </div>
     </div>

@@ -224,6 +224,153 @@
   overflow-wrap: anywhere;
 }
 
+.loginPage {
+  min-height: 100vh;
+  background: #f3f3f1;
+  padding: 12px;
+  display: grid;
+  place-items: center;
+}
+
+.loginShell {
+  width: min(70vw, 1680px);
+  height: calc(100vh - 24px);
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  border: 1px solid #c8d0d6;
+  background: #f3f3f1;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.loginVisual {
+  position: relative;
+  background-image:
+    linear-gradient(
+      0deg,
+      rgba(12, 18, 12, 0.68) 0%,
+      rgba(12, 18, 12, 0.18) 62%,
+      rgba(12, 18, 12, 0.05) 100%
+    ),
+    url("/login.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  min-height: 0;
+}
+
+.loginOverlay {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 22px;
+  color: #fff;
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+}
+
+.loginBrand {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.loginOverlay h1 {
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+  line-height: 1.12;
+}
+
+.loginOverlay p {
+  font-size: 0.98rem;
+  color: rgba(255, 255, 255, 0.9);
+  max-width: 42ch;
+}
+
+.loginPanel {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.loginPanel > * {
+  width: min(100%, 440px);
+}
+
+.loginHeader {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.loginHeader h2 {
+  font-size: 1.75rem;
+  color: #1f2534;
+}
+
+.loginHeader p {
+  color: #707781;
+}
+
+.authSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: #dcdac7;
+  border-radius: 999px;
+  padding: 5px;
+  margin-bottom: 12px;
+}
+
+.authSwitchActive,
+.authSwitchLink {
+  border-radius: 999px;
+  padding: 9px 14px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.94rem;
+}
+
+.authSwitchActive {
+  background: #5f853f;
+  color: #fff;
+}
+
+.authSwitchLink {
+  color: #45524b;
+}
+
+.loginPrimaryButton {
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 16px;
+  font-weight: 700;
+  color: #fff;
+  background: #5f853f;
+  box-shadow: 0 10px 18px rgba(53, 77, 35, 0.23);
+  cursor: pointer;
+}
+
+.loginPrimaryButton:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.loginFooterText {
+  margin-top: 14px;
+  color: #6e7569;
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+.loginFooterText a {
+  color: #4f7834;
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .page {
     padding: 16px;
@@ -235,5 +382,44 @@
 
   .profileGrid {
     grid-template-columns: 1fr;
+  }
+
+  .loginPage {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .loginShell {
+    width: 100%;
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .loginVisual {
+    min-height: 360px;
+  }
+
+  .loginOverlay {
+    left: 18px;
+    right: 18px;
+    bottom: 20px;
+  }
+
+  .loginBrand {
+    font-size: 1.6rem;
+  }
+
+  .loginOverlay h1 {
+    font-size: clamp(1.7rem, 6.5vw, 2.25rem);
+  }
+
+  .loginOverlay p {
+    font-size: 0.98rem;
+  }
+
+  .loginPanel {
+    padding: 22px 16px 28px;
   }
 }

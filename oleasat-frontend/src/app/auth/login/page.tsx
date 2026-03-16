@@ -53,27 +53,28 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.grid}>
-        <section className={styles.story}>
-          <p className={styles.storyKicker}>OleaSat Access</p>
-          <h1>Sign in to your precision irrigation workspace.</h1>
-          <p>
-            This login connects to your backend endpoint <code>/api/v1/auth/login</code> and stores the JWT token
-            locally for protected API calls.
-          </p>
-          <ul className={styles.storyList}>
-            <li>Secure session using JWT bearer token</li>
-            <li>Fast handoff directly to dashboard</li>
-            <li>Same account used for farm and dashboard features</li>
-          </ul>
+    <div className={styles.loginPage}>
+      <div className={styles.loginShell}>
+        <section className={styles.loginVisual}>
+          <div className={styles.loginOverlay}>
+            <p className={styles.loginBrand}>OleaSat</p>
+            <h1>Precision monitoring for resilient orchards</h1>
+            <p>Use satellite intelligence to strengthen sustainable agriculture in North Africa.</p>
+          </div>
         </section>
 
-        <main className={styles.card}>
-          <header className={styles.header}>
-            <h2>Connexion</h2>
-            <p>Enter your email and password to continue.</p>
+        <main className={styles.loginPanel}>
+          <header className={styles.loginHeader}>
+            <h2>Welcome to OleaSat</h2>
+            <p>Sign in to access your workspace.</p>
           </header>
+
+          <nav className={styles.authSwitch} aria-label="Auth switch">
+            <span className={styles.authSwitchActive}>Sign In</span>
+            <Link className={styles.authSwitchLink} href="/auth/register">
+              Register
+            </Link>
+          </nav>
 
           <form className={styles.form} onSubmit={onSubmit}>
             <div className={styles.field}>
@@ -84,6 +85,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                placeholder="ahmed@example.com"
                 required
               />
             </div>
@@ -96,6 +98,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
                 minLength={6}
                 required
               />
@@ -105,20 +108,15 @@ export default function LoginPage() {
             {successMessage && <p className={styles.success}>{successMessage}</p>}
 
             <div className={styles.actions}>
-              <button className={styles.primaryButton} disabled={pending} type="submit">
-                {pending ? "Signing in..." : "Sign in"}
+              <button className={styles.loginPrimaryButton} disabled={pending} type="submit">
+                {pending ? "Signing in..." : "Sign In"}
               </button>
             </div>
           </form>
 
-          <div className={styles.linksRow}>
-            <Link className={styles.linkPill} href="/auth/register">
-              Need an account? Register
-            </Link>
-            <Link className={styles.linkPill} href="/">
-              Back to home
-            </Link>
-          </div>
+          <p className={styles.loginFooterText}>
+            Don&apos;t have an account? <Link href="/auth/register">Create one</Link>
+          </p>
         </main>
       </div>
     </div>
