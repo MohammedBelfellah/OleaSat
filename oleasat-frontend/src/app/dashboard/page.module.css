@@ -1,6 +1,8 @@
 .page {
   min-height: 100vh;
+  height: 100vh;
   padding: 0;
+  overflow: hidden;
   background:
     radial-gradient(circle at 12% 8%, rgba(116, 149, 75, 0.2), transparent 40%),
     radial-gradient(
@@ -20,6 +22,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
+  height: 100%;
 }
 
 .workspace {
@@ -27,6 +30,9 @@
   grid-template-columns: 280px 1fr;
   gap: 0;
   min-height: 100vh;
+  height: 100%;
+  align-items: start;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -40,10 +46,25 @@
   gap: 10px;
   align-content: start;
   min-height: 100vh;
-  height: 100%;
-  position: relative;
-  align-self: stretch;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: start;
   border-radius: 0;
+  overflow-y: auto;
+}
+
+.sidebarLogoWrap {
+  display: grid;
+  place-items: center;
+  padding: 8px 10px 14px;
+}
+
+.sidebarLogo {
+  display: block;
+  width: min(180px, 100%);
+  height: auto;
+  object-fit: contain;
 }
 
 .sidebarKicker {
@@ -148,6 +169,10 @@
   display: grid;
   gap: 12px;
   padding: 16px;
+  height: 100vh;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -1466,14 +1491,31 @@
 }
 
 @media (max-width: 1024px) {
+  .page {
+    height: auto;
+    overflow: visible;
+  }
+
+  .shell {
+    height: auto;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
   }
 
   .sidebar {
     position: static;
     height: auto;
     border-radius: 16px;
+    overflow: visible;
+  }
+
+  .main {
+    height: auto;
+    overflow: visible;
   }
 
   .stepper {

@@ -1,6 +1,7 @@
  "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -364,6 +365,7 @@ function DashboardPageContent() {
 
   useEffect(() => {
     const nextView = searchParams.get("view");
+    const shouldOpenAddFarm = searchParams.get("addFarm") === "1";
     if (
       nextView === "actions" ||
       nextView === "farms" ||
@@ -372,6 +374,14 @@ function DashboardPageContent() {
       nextView === "profile"
     ) {
       setView(nextView);
+      setIsAddFarmOpen(nextView === "farms" && shouldOpenAddFarm);
+      router.replace("/dashboard", { scroll: false });
+      return;
+    }
+
+    if (shouldOpenAddFarm) {
+      setView("farms");
+      setIsAddFarmOpen(true);
       router.replace("/dashboard", { scroll: false });
     }
   }, [searchParams, router]);
@@ -903,8 +913,9 @@ function DashboardPageContent() {
       <div className={styles.shell}>
         <div className={styles.workspace}>
           <aside className={styles.sidebar}>
-            <p className={styles.sidebarKicker}>Dashboard navigation</p>
-            <h2>Workspace</h2>
+            <div className={styles.sidebarLogoWrap}>
+              <Image className={styles.sidebarLogo} src="/logo.png" alt="OleaSat" width={180} height={72} priority />
+            </div>
 
             <div className={styles.navList}>
               <button
@@ -927,6 +938,12 @@ function DashboardPageContent() {
                   <span>Farms management</span>
                 </span>
               </button>
+              <Link className={styles.navLink} href="/dashboard/analysis">
+                <span className={styles.navButtonLabel}>
+                  <DashboardGlyph name="water" className={styles.navGlyph} />
+                  <span>Analyze</span>
+                </span>
+              </Link>
               <button
                 type="button"
                 className={view === "telegram" ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink}
@@ -937,12 +954,6 @@ function DashboardPageContent() {
                   <span>Telegram connection</span>
                 </span>
               </button>
-              <Link className={styles.navLink} href="/dashboard/analysis">
-                <span className={styles.navButtonLabel}>
-                  <DashboardGlyph name="water" className={styles.navGlyph} />
-                  <span>Analyze history</span>
-                </span>
-              </Link>
             </div>
 
             <div className={styles.navBottom}>

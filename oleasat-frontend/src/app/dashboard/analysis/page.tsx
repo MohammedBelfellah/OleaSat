@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -239,8 +240,9 @@ export default function DashboardAnalysisListPage() {
       <div className={styles.shell}>
         <div className={styles.workspace}>
           <aside className={styles.sidebar}>
-            <p className={styles.sidebarKicker}>Dashboard navigation</p>
-            <h2>Workspace</h2>
+            <div className={styles.sidebarLogoWrap}>
+              <Image className={styles.sidebarLogo} src="/logo.png" alt="OleaSat" width={180} height={72} priority />
+            </div>
 
             <div className={styles.navList}>
               <Link className={styles.navLink} href="/dashboard">
@@ -255,16 +257,16 @@ export default function DashboardAnalysisListPage() {
                   <span>Farms management</span>
                 </span>
               </Link>
+              <Link className={`${styles.navLink} ${styles.navLinkActive}`} href="/dashboard/analysis">
+                <span className={styles.navButtonLabel}>
+                  <SidebarGlyph name="water" className={styles.navGlyph} />
+                  <span>Analyze</span>
+                </span>
+              </Link>
               <Link className={styles.navLink} href="/dashboard?view=telegram">
                 <span className={styles.navButtonLabel}>
                   <SidebarGlyph name="message" className={styles.navGlyph} />
                   <span>Telegram connection</span>
-                </span>
-              </Link>
-              <Link className={`${styles.navLink} ${styles.navLinkActive}`} href="/dashboard/analysis">
-                <span className={styles.navButtonLabel}>
-                  <SidebarGlyph name="water" className={styles.navGlyph} />
-                  <span>Analyze history</span>
                 </span>
               </Link>
             </div>

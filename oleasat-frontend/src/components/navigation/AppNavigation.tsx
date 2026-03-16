@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -55,26 +56,27 @@ export const mainRoutes: NavRoute[] = [
     match: (pathname) => pathname === "/dashboard" || pathname.startsWith("/dashboard/"),
   },
   {
-    href: "/farms",
+    href: "/dashboard?view=farms",
     label: "Farms",
     icon: "farms",
-    match: (pathname) => pathname === "/farms" || pathname.startsWith("/farms/"),
+    match: (pathname) => pathname === "/dashboard",
   },
   {
-    href: "/analysis",
+    href: "/dashboard/analysis",
     label: "Analysis",
     icon: "analysis",
-    match: (pathname) => pathname === "/analysis" || pathname.startsWith("/analysis/"),
+    match: (pathname) => pathname === "/dashboard/analysis" || pathname.startsWith("/dashboard/analysis/"),
   },
   {
-    href: "/feedback",
+    href: "/dashboard?view=feedback",
     label: "Feedback",
     icon: "feedback",
   },
   {
-    href: "/tools",
+    href: "/dashboard/tools",
     label: "Tools",
     icon: "tools",
+    match: (pathname) => pathname === "/dashboard/tools",
   },
 ];
 
@@ -86,16 +88,16 @@ export const dashboardWorkspaceRoutes: NavRoute[] = [
     match: (pathname) => pathname === "/dashboard",
   },
   {
-    href: "/farms",
-    label: "Farm registry",
-    icon: "farms",
-    match: (pathname) => pathname === "/farms" || pathname.startsWith("/farms/"),
+    href: "/dashboard/analysis",
+    label: "Analyze",
+    icon: "analysis",
+    match: (pathname) => pathname === "/dashboard/analysis" || pathname.startsWith("/dashboard/analysis/"),
   },
   {
-    href: "/analysis",
-    label: "Run analysis",
-    icon: "analysis",
-    match: (pathname) => pathname === "/analysis" || pathname.startsWith("/analysis/"),
+    href: "/dashboard?view=farms",
+    label: "Farm registry",
+    icon: "farms",
+    match: (pathname) => pathname === "/dashboard",
   },
   {
     href: "/dashboard/analysis",
@@ -107,20 +109,21 @@ export const dashboardWorkspaceRoutes: NavRoute[] = [
 
 export const utilityRoutes: NavRoute[] = [
   {
-    href: "/feedback",
+    href: "/dashboard?view=feedback",
     label: "Feedback",
     icon: "feedback",
   },
   {
-    href: "/tools",
+    href: "/dashboard/tools",
     label: "Tools lab",
     icon: "tools",
+    match: (pathname) => pathname === "/dashboard/tools",
   },
   {
-    href: "/auth/me",
+    href: "/dashboard?view=profile",
     label: "Profile",
     icon: "profile",
-    match: (pathname) => pathname === "/auth/me",
+    match: (pathname) => pathname === "/dashboard",
   },
 ];
 
@@ -139,9 +142,7 @@ export function AppSidebarNavigation({
   return (
     <aside className={classes}>
       <div className={styles.sidebarBrand}>
-        <p className={styles.sidebarEyebrow}>{eyebrow}</p>
-        <h2>{title}</h2>
-        <p className={styles.sidebarCopy}>Orange-led workspace for operations, analysis, and farm decisions.</p>
+        <Image src="/logo.png" alt="OleaSat Logo" width={180} height={72} priority style={{ maxWidth: "100%", height: "auto" }} />
       </div>
 
       <nav className={styles.sidebarGroup} aria-label="Primary navigation">

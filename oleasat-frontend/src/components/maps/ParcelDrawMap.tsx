@@ -54,7 +54,8 @@ function fromLayer(layer: L.Layer): LonLat[] {
   }
 
   const latLngs = layer.getLatLngs();
-  const ring = Array.isArray(latLngs[0]) ? (latLngs[0] as L.LatLng[]) : [];
+  // Handle both simple polygons [LatLng...] and multi-ring polygons [[LatLng...]]
+  const ring = Array.isArray(latLngs[0]) ? (latLngs[0] as L.LatLng[]) : (latLngs as L.LatLng[]);
 
   return ring.map((point) => [Number(point.lng.toFixed(6)), Number(point.lat.toFixed(6))]);
 }
@@ -63,6 +64,8 @@ function DrawToolbar({ points, onChange }: { points: LonLat[]; onChange: (points
   const map = useMap();
   const featureGroupRef = useRef<L.FeatureGroup | null>(null);
   const lastSerializedRef = useRef("");
+  const drawnLayerRef = useRef<L.Layer | null>(null);
+  const controlRef = useRef<L.Control.Draw | null>(null);
 
   useEffect(() => {
     const featureGroup = featureGroupRef.current;
@@ -99,6 +102,7 @@ function DrawToolbar({ points, onChange }: { points: LonLat[]; onChange: (points
         remove: true,
       },
     });
+    controlRef.current = control;
 
     const syncLayer = (layer: L.Layer) => {
       const next = fromLayer(layer);
@@ -107,7 +111,7 @@ function DrawToolbar({ points, onChange }: { points: LonLat[]; onChange: (points
     };
 
     const onCreated = (event: L.DrawEvents.Created) => {
-      featureGroup.clearLayers();
+      drawnLayerRef.current = event.layer;
       featureGroup.addLayer(event.layer);
       syncLayer(event.layer);
     };
@@ -124,6 +128,7 @@ function DrawToolbar({ points, onChange }: { points: LonLat[]; onChange: (points
     };
 
     const onDeleted = () => {
+      drawnLayerRef.current = null;
       lastSerializedRef.current = "[]";
       onChange([]);
     };
@@ -137,8 +142,9 @@ function DrawToolbar({ points, onChange }: { points: LonLat[]; onChange: (points
       map.off(L.Draw.Event.CREATED, onCreated as L.LeafletEventHandlerFn);
       map.off(L.Draw.Event.EDITED, onEdited as L.LeafletEventHandlerFn);
       map.off(L.Draw.Event.DELETED, onDeleted as L.LeafletEventHandlerFn);
-      map.removeControl(control);
-      featureGroup.clearLayers();
+      if (controlRef.current) {
+        map.removeControl(controlRef.current);
+      }
     };
   }, [map, onChange]);
 
@@ -151,16 +157,21 @@ function DrawToolbar({ points, onChange }: { points: LonLat[]; onChange: (points
       return;
     }
 
+    // If we have a drawn layer, don't clear it - the draw tool manages it
+    if (drawnLayerRef.current) {
+      return;
+    }
+
+    // Only create visual layers if not using the draw tool
     featureGroup.clearLayers();
     if (points.length >= 3) {
-      featureGroup.addLayer(
-        L.polygon(points.map((point) => toLatLng(point)), {
-          color: "#d9721f",
-          weight: 2,
-          fillColor: "#f09a44",
-          fillOpacity: 0.22,
-        }),
-      );
+      const polygon = L.polygon(points.map((point) => toLatLng(point)), {
+        color: "#d9721f",
+        weight: 2,
+        fillColor: "#f09a44",
+        fillOpacity: 0.22,
+      });
+      featureGroup.addLayer(polygon);
     }
 
     lastSerializedRef.current = serialized;
@@ -190,7 +201,7 @@ export default function ParcelDrawMap({ points, onAddPoint, onMovePoint, onChang
     <MapContainer className={mapClassName} center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} scrollWheelZoom>
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap contributors"
+        attribution="OleaSat"
       />
 
       <FitToPoints points={points} />
