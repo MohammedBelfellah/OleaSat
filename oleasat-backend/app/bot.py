@@ -330,6 +330,9 @@ def build_bot() -> Application | None:
 
 async def start_bot() -> None:
     """Initialize and start the bot (webhook-less polling mode)."""
+    import asyncio
+    from telegram.error import Conflict
+
     if _app is None:
         build_bot()
     if _app is None:
@@ -337,8 +340,19 @@ async def start_bot() -> None:
 
     await _app.initialize()
     await _app.start()
-    await _app.updater.start_polling(drop_pending_updates=True)
-    logger.info("Telegram bot polling started")
+
+    for attempt in range(3):
+        try:
+            await _app.updater.start_polling(drop_pending_updates=True)
+            logger.info("Telegram bot polling started")
+            return
+        except Conflict:
+            if attempt < 2:
+                logger.warning("Telegram conflict (attempt %d/3), retrying in 30s...", attempt + 1)
+                await asyncio.sleep(30)
+            else:
+                logger.error("Telegram conflict persists after 3 attempts — bot polling disabled")
+                raise
 
 
 async def stop_bot() -> None:
