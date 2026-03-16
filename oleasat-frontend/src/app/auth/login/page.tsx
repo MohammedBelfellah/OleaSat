@@ -117,6 +117,16 @@ export default function LoginPage() {
           <p className={styles.loginFooterText}>
             Don&apos;t have an account? <Link href="/auth/register">Create one</Link>
           </p>
+
+          <div className={styles.loginTestNote}>
+            <p className={styles.loginTestTitle}>Testing credentials</p>
+            <p>
+              Email: <strong>test@oleasat.com</strong>
+            </p>
+            <p>
+              Password: <strong>test2030</strong>
+            </p>
+          </div>
         </main>
       </div>
     </div>

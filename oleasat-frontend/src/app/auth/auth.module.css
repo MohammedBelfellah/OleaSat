@@ -371,6 +371,27 @@
   font-weight: 700;
 }
 
+.loginTestNote {
+  margin-top: 10px;
+  border: 1px solid #d6ddcd;
+  background: #f7faef;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #3a433a;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.loginTestTitle {
+  margin: 0 0 4px;
+  font-weight: 700;
+  color: #2f3a2d;
+}
+
+.loginTestNote p {
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .page {
     padding: 16px;
